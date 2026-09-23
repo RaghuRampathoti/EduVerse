@@ -1,0 +1,19 @@
+# Node dependencies
+node_modules/
+frontend/node_modules/
+
+# Frontend build files
+frontend/dist/
+
+# Java/Maven build files
+backend/target/
+
+# Local configuration and secrets
+backend/src/main/resources/application-local.yml
+
+# Scratch files
+backend/scratch/
+
+# Environment files
+.env
+frontend/.env
