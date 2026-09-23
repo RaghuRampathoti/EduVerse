@@ -1,0 +1,50 @@
+server:
+  port: ${SERVER_PORT:8080}
+  servlet:
+    context-path: /
+
+spring:
+  application:
+    name: eduverse-backend
+
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/sch_db}
+    username: ${DB_USERNAME:postgres}
+    password: ${DB_PASSWORD:1441}
+    driver-class-name: org.postgresql.Driver
+    hikari:
+      maximum-pool-size: 10
+      minimum-idle: 2
+
+  jpa:
+    hibernate:
+      ddl-auto: update
+    show-sql: false
+    properties:
+      hibernate:
+        format_sql: true
+        dialect: org.hibernate.dialect.PostgreSQLDialect
+        jdbc:
+          time_zone: UTC
+    open-in-view: false
+
+  jackson:
+    default-property-inclusion: non_null
+    time-zone: UTC
+
+eduverse:
+  jwt:
+    secret: ${JWT_SECRET:eduverse-super-secret-signing-key-change-this-in-production-min-256-bits}
+    access-token-expiration-ms: ${JWT_ACCESS_EXP:86400000}    # 24 hours
+    refresh-token-expiration-ms: ${JWT_REFRESH_EXP:604800000} # 7 days
+  cors:
+    allowed-origins: ${CORS_ORIGINS:http://localhost:5173,http://localhost:3000}
+  master-admin:
+    email: ${MASTER_ADMIN_EMAIL:masteradmin@eduverse.com}
+    password: ${MASTER_ADMIN_PASSWORD:MasterAdmin@123}
+    seed-on-startup: ${SEED_MASTER_ADMIN:true}
+
+logging:
+  level:
+    com.eduverse: INFO
+    org.springframework.security: INFO
