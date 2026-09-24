@@ -3,7 +3,6 @@ package com.eduverse.dto.request;
 import com.eduverse.entity.InstitutionType;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
-import jakarta.validation.constraints.NotNull;
 
 /**
  * Submitted by the Master Admin. Creates an Institution AND its first
