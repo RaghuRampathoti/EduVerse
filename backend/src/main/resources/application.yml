@@ -38,7 +38,7 @@ eduverse:
     access-token-expiration-ms: ${JWT_ACCESS_EXP:86400000}    # 24 hours
     refresh-token-expiration-ms: ${JWT_REFRESH_EXP:604800000} # 7 days
   cors:
-    allowed-origins: ${CORS_ORIGINS:http://localhost:5173,http://localhost:3000}
+    allowed-origins: ${CORS_ORIGINS:http://localhost:5173,http://localhost:3000,https://educational-verse.vercel.app}
   master-admin:
     email: ${MASTER_ADMIN_EMAIL:masteradmin@eduverse.com}
     password: ${MASTER_ADMIN_PASSWORD:MasterAdmin@123}
