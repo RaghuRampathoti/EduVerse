@@ -47,12 +47,8 @@ public class DatabaseConfig implements BeanPostProcessor {
 
                 if (userInfo != null && userInfo.contains(":")) {
                     String[] parts = userInfo.split(":", 2);
-                    if (properties.getUsername() == null || properties.getUsername().isBlank()) {
-                        properties.setUsername(parts[0]);
-                    }
-                    if (properties.getPassword() == null || properties.getPassword().isBlank()) {
-                        properties.setPassword(parts[1]);
-                    }
+                    properties.setUsername(parts[0]);
+                    properties.setPassword(parts[1]);
                 }
 
                 StringBuilder jdbcUrl = new StringBuilder("jdbc:postgresql://").append(host);
