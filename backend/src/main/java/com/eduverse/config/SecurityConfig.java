@@ -55,7 +55,11 @@ public class SecurityConfig {
     @Bean
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
-        configuration.setAllowedOrigins(List.of("http://localhost:5173", "http://localhost:3000", "https://educational-verse.vercel.app"));
+        List<String> origins = corsProperties.allowedOrigins();
+        if (origins == null || origins.isEmpty()) {
+            origins = List.of("http://localhost:5173", "http://localhost:3000", "https://educational-verse.vercel.app");
+        }
+        configuration.setAllowedOrigins(origins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);

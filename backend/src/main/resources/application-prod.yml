@@ -1,0 +1,10 @@
+spring:
+  jpa:
+    hibernate:
+      ddl-auto: ${DB_DDL_AUTO:update}
+    show-sql: false
+
+logging:
+  level:
+    com.eduverse: INFO
+    org.springframework.security: WARN
