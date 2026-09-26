@@ -56,10 +56,11 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration configuration = new CorsConfiguration();
         List<String> origins = corsProperties.allowedOrigins();
-        if (origins == null || origins.isEmpty()) {
-            origins = List.of("http://localhost:5173", "http://localhost:3000", "https://educational-verse.vercel.app");
+        if (origins != null && !origins.isEmpty()) {
+            configuration.setAllowedOrigins(origins);
+        } else {
+            configuration.setAllowedOriginPatterns(List.of("*"));
         }
-        configuration.setAllowedOrigins(origins);
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
