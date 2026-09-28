@@ -52,6 +52,11 @@ public class DataSeeder implements CommandLineRunner {
             return;
         }
 
+        if (userRepository.count() > 0 && subscriptionPlanRepository.count() > 0) {
+            log.info("Database already seeded with initial data. Skipping full seeder execution.");
+            return;
+        }
+
         // 1. Seed MASTER_ADMIN
         String masterEmail = masterAdminProperties.email();
         if (!userRepository.existsByEmail(masterEmail)) {
