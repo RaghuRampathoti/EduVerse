@@ -1,6 +1,17 @@
 import axios from "axios";
 
-const BASE_URL = import.meta.env.VITE_API_URL || "/api";
+const getBaseUrl = () => {
+  const envUrl = import.meta.env.VITE_API_URL;
+  if (envUrl && !envUrl.includes("vercel.app")) {
+    return envUrl;
+  }
+  if (import.meta.env.PROD) {
+    return "https://eduverse-backend.onrender.com/api";
+  }
+  return "/api";
+};
+
+const BASE_URL = getBaseUrl();
 
 export const api = axios.create({
   baseURL: BASE_URL,

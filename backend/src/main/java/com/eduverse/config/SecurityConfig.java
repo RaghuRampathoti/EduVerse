@@ -58,9 +58,8 @@ public class SecurityConfig {
         List<String> origins = corsProperties.allowedOrigins();
         if (origins != null && !origins.isEmpty()) {
             configuration.setAllowedOrigins(origins);
-        } else {
-            configuration.setAllowedOriginPatterns(List.of("*"));
         }
+        configuration.setAllowedOriginPatterns(List.of("https://*.vercel.app", "https://*.onrender.com", "http://localhost:*", "http://127.0.0.1:*"));
         configuration.setAllowedMethods(List.of("GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"));
         configuration.setAllowedHeaders(List.of("*"));
         configuration.setAllowCredentials(true);
