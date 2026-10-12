@@ -27,9 +27,12 @@ import org.springframework.web.bind.annotation.RestController;
 import java.time.LocalDate;
 import java.util.List;
 
+import org.springframework.transaction.annotation.Transactional;
+
 @RestController
 @RequestMapping("/api/faculty")
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class FacultyController {
 
     private final FacultyProfileRepository facultyProfileRepository;

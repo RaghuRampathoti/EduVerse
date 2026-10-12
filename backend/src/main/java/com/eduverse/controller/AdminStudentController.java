@@ -21,6 +21,9 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
+import org.springframework.web.multipart.MultipartFile;
+import com.eduverse.dto.response.BulkImportResponse;
+import com.eduverse.service.impl.StudentBulkImportService;
 
 @RestController
 @RequestMapping("/api/admin/students")
@@ -28,6 +31,7 @@ import org.springframework.web.bind.annotation.RestController;
 public class AdminStudentController {
 
     private final StudentService studentService;
+    private final StudentBulkImportService studentBulkImportService;
 
     @PostMapping
     public ResponseEntity<ApiResponse<StudentResponse>> create(
@@ -36,6 +40,15 @@ public class AdminStudentController {
     ) {
         return ResponseEntity.ok(ApiResponse.ok(
                 "Student enrolled successfully", studentService.create(principal.getInstitutionId(), request)));
+    }
+
+    @PostMapping("/bulk-upload")
+    public ResponseEntity<ApiResponse<BulkImportResponse>> bulkUpload(
+            @AuthenticationPrincipal SecurityUser principal,
+            @RequestParam("file") MultipartFile file
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                "Bulk import completed", studentBulkImportService.bulkImport(principal.getInstitutionId(), file)));
     }
 
     @GetMapping

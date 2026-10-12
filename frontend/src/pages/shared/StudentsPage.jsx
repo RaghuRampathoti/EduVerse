@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from "react";
-import { Plus, Users, Trash2, Pencil, Copy, Check, Eye } from "lucide-react";
+import { Plus, Users, Trash2, Pencil, Copy, Check, Eye, Upload, FileSpreadsheet } from "lucide-react";
+import * as XLSX from "xlsx";
 import { studentApi } from "@/api/students";
 import { classSectionApi } from "@/api/classSections";
 import { extractErrorMessage } from "@/api/client";
@@ -40,6 +41,12 @@ export default function StudentsPage() {
   const [error, setError] = useState("");
   const [credentials, setCredentials] = useState(null);
   const [copied, setCopied] = useState(false);
+
+  // Bulk Upload State
+  const [bulkDialogOpen, setBulkDialogOpen] = useState(false);
+  const [bulkFile, setBulkFile] = useState(null);
+  const [bulkSubmitting, setBulkSubmitting] = useState(false);
+  const [bulkResult, setBulkResult] = useState(null);
 
   function load() {
     setLoading(true);
@@ -173,6 +180,55 @@ export default function StudentsPage() {
     setTimeout(() => setCopied(false), 2000);
   }
 
+  async function handleBulkUpload(e) {
+    e.preventDefault();
+    if (!bulkFile) return;
+    setBulkSubmitting(true);
+    const formData = new FormData();
+    formData.append("file", bulkFile);
+    try {
+      const { data } = await studentApi.bulkUpload(formData);
+      setBulkResult(data.data);
+      toast({ title: "Bulk import processed", variant: "success" });
+      load();
+    } catch (err) {
+      toast({ title: "Upload failed", description: extractErrorMessage(err), variant: "destructive" });
+    } finally {
+      setBulkSubmitting(false);
+    }
+  }
+
+  function downloadTemplate() {
+    const columns = [
+      {
+        FullName: "Student One",
+        Email: "student1@school.edu",
+        Username: "student1",
+        Password: "password123",
+        Phone: "9876543210",
+        AdmissionNumber: "ADM001",
+        RollNumber: "101",
+        Gender: "MALE",
+        DateOfBirth: "2010-05-15",
+        AdmissionDate: "2024-01-10",
+        GuardianName: "Parent One",
+        GuardianPhone: "9876543211",
+        Address: "123 Main St",
+        BloodGroup: "O+",
+        ParentFullName: "Parent One",
+        ParentEmail: "parent1@school.edu",
+        ParentUsername: "parent1",
+        ParentPassword: "password123",
+        ParentPhone: "9876543211"
+      }
+    ];
+    
+    const worksheet = XLSX.utils.json_to_sheet(columns);
+    const workbook = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(workbook, worksheet, "Student Template");
+    XLSX.writeFile(workbook, "student_import_template.xlsx");
+  }
+
   return (
     <div>
       <PageHeader
@@ -184,7 +240,17 @@ export default function StudentsPage() {
               <option value="">All Classes</option>
               {classSections.map((c) => <option key={c.id} value={c.id}>{c.className} {c.sectionName}</option>)}
             </Select>
-            {isAdmin && <Button onClick={openCreate}><Plus className="h-4 w-4" /> Enroll Student</Button>}
+            {isAdmin && (
+              <>
+                <Button variant="outline" onClick={downloadTemplate}>
+                  <FileSpreadsheet className="h-4 w-4 mr-2 text-green-600" /> Excel Sheet
+                </Button>
+                <Button variant="outline" onClick={() => { setBulkDialogOpen(true); setBulkFile(null); setBulkResult(null); }}>
+                  <Upload className="h-4 w-4 mr-2" /> Bulk Import
+                </Button>
+                <Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Enroll Student</Button>
+              </>
+            )}
           </div>
         }
       />
@@ -192,7 +258,7 @@ export default function StudentsPage() {
       {loading ? (
         <Spinner full />
       ) : students.length === 0 ? (
-        <Card><EmptyState icon={Users} title="No students yet" description={isAdmin ? "Enroll your first student to get started." : "No students found."} action={isAdmin ? <Button onClick={openCreate}><Plus className="h-4 w-4" /> Enroll Student</Button> : null} /></Card>
+        <Card><EmptyState icon={Users} title="No students yet" description={isAdmin ? "Enroll your first student to get started." : "No students found."} action={isAdmin ? <div className="space-x-2"><Button onClick={openCreate}><Plus className="h-4 w-4 mr-2" /> Enroll Student</Button><Button variant="outline" onClick={() => { setBulkDialogOpen(true); setBulkFile(null); setBulkResult(null); }}><Upload className="h-4 w-4 mr-2" /> Bulk Import</Button><Button variant="outline" onClick={downloadTemplate}><FileSpreadsheet className="h-4 w-4 mr-2 text-green-600" /> Excel Sheet</Button></div> : null} /></Card>
       ) : (
         <Card>
           <Table>
@@ -524,6 +590,53 @@ export default function StudentsPage() {
               </Button>
             )}
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Bulk Upload Modal */}
+      <Dialog open={bulkDialogOpen} onOpenChange={setBulkDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Bulk Import Students</DialogTitle>
+            <DialogDescription>Upload a CSV or Excel file to enroll multiple students at once.</DialogDescription>
+          </DialogHeader>
+          
+          {bulkResult ? (
+            <div className="space-y-4">
+              <div className="p-4 bg-muted rounded-md space-y-2">
+                <p><strong>Total Records:</strong> {bulkResult.totalRecords}</p>
+                <p className="text-emerald-600"><strong>Successfully Imported:</strong> {bulkResult.successCount}</p>
+                <p className="text-destructive"><strong>Failed:</strong> {bulkResult.errorCount}</p>
+              </div>
+              {bulkResult.errors && bulkResult.errors.length > 0 && (
+                <div className="max-h-40 overflow-y-auto p-3 bg-destructive/10 text-destructive text-sm rounded-md space-y-1">
+                  {bulkResult.errors.map((err, i) => <p key={i}>{err}</p>)}
+                </div>
+              )}
+              <DialogFooter>
+                <Button onClick={() => setBulkDialogOpen(false)}>Done</Button>
+              </DialogFooter>
+            </div>
+          ) : (
+            <form onSubmit={handleBulkUpload} className="space-y-4">
+              <div className="space-y-1.5">
+                <Label>Select File (.csv, .xlsx)</Label>
+                <Input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => setBulkFile(e.target.files[0])} required />
+              </div>
+              
+              <div className="text-sm text-muted-foreground flex items-center justify-between">
+                <span>Need a template?</span>
+                <Button type="button" variant="link" className="p-0 h-auto" onClick={downloadTemplate}>Download Excel Template</Button>
+              </div>
+
+              <DialogFooter>
+                <Button type="button" variant="outline" onClick={() => setBulkDialogOpen(false)}>Cancel</Button>
+                <Button type="submit" disabled={!bulkFile || bulkSubmitting}>
+                  {bulkSubmitting ? "Uploading..." : "Upload & Import"}
+                </Button>
+              </DialogFooter>
+            </form>
+          )}
         </DialogContent>
       </Dialog>
     </div>

@@ -22,16 +22,26 @@ import com.eduverse.entity.User;
 import com.eduverse.entity.UserStatus;
 import com.eduverse.exception.BadRequestException;
 import com.eduverse.exception.ResourceNotFoundException;
+import com.eduverse.repository.AnnouncementRepository;
 import com.eduverse.repository.AuditLogRepository;
+import com.eduverse.repository.ClassSectionRepository;
+import com.eduverse.repository.ExamRepository;
+import com.eduverse.repository.FacultyAttendanceRepository;
 import com.eduverse.repository.FacultyProfileRepository;
 import com.eduverse.repository.FeatureEntitlementRepository;
 import com.eduverse.repository.FeePaymentRepository;
+import com.eduverse.repository.FeeStructureRepository;
+import com.eduverse.repository.HomeworkRepository;
 import com.eduverse.repository.InstitutionRepository;
 import com.eduverse.repository.InstitutionSubscriptionRepository;
+import com.eduverse.repository.LeaveApplicationRepository;
+import com.eduverse.repository.ParentProfileRepository;
+import com.eduverse.repository.StudentAttendanceRepository;
 import com.eduverse.repository.StudentProfileRepository;
 import com.eduverse.repository.SubscriptionPlanRepository;
 import com.eduverse.repository.SupportNoticeRepository;
 import com.eduverse.repository.SystemConfigRepository;
+import com.eduverse.repository.TimetableRepository;
 import com.eduverse.repository.UserRepository;
 import com.eduverse.service.AuditLogService;
 import com.eduverse.service.MasterAdminService;
@@ -61,7 +71,17 @@ public class MasterAdminServiceImpl implements MasterAdminService {
     private final UserRepository userRepository;
     private final StudentProfileRepository studentProfileRepository;
     private final FacultyProfileRepository facultyProfileRepository;
+    private final ParentProfileRepository parentProfileRepository;
+    private final ClassSectionRepository classSectionRepository;
+    private final FeeStructureRepository feeStructureRepository;
     private final FeePaymentRepository feePaymentRepository;
+    private final StudentAttendanceRepository studentAttendanceRepository;
+    private final FacultyAttendanceRepository facultyAttendanceRepository;
+    private final LeaveApplicationRepository leaveApplicationRepository;
+    private final HomeworkRepository homeworkRepository;
+    private final ExamRepository examRepository;
+    private final TimetableRepository timetableRepository;
+    private final AnnouncementRepository announcementRepository;
     private final PasswordEncoder passwordEncoder;
     private final PasswordGenerator passwordGenerator;
     private final AuditLogService auditLogService;
@@ -186,6 +206,24 @@ public class MasterAdminServiceImpl implements MasterAdminService {
     @Transactional
     public void deleteInstitution(Long id) {
         Institution institution = findInstitution(id);
+
+        auditLogRepository.deleteByInstitutionId(id);
+        studentAttendanceRepository.deleteByInstitutionId(id);
+        facultyAttendanceRepository.deleteByInstitutionId(id);
+        feePaymentRepository.deleteByInstitutionId(id);
+        feeStructureRepository.deleteByInstitutionId(id);
+        leaveApplicationRepository.deleteByInstitutionId(id);
+        homeworkRepository.deleteByInstitutionId(id);
+        examRepository.deleteByInstitutionId(id);
+        timetableRepository.deleteByInstitutionId(id);
+        announcementRepository.deleteByInstitutionId(id);
+        institutionSubscriptionRepository.deleteByInstitutionId(id);
+        studentProfileRepository.deleteByInstitutionId(id);
+        facultyProfileRepository.deleteByInstitutionId(id);
+        parentProfileRepository.deleteByInstitutionId(id);
+        classSectionRepository.deleteByInstitutionId(id);
+        userRepository.deleteByInstitutionId(id);
+
         auditLogService.log(null, "DELETE_INSTITUTION", "INSTITUTION", institution.getId(),
                 "Deleted institution '" + institution.getName() + "' (" + institution.getCode() + ")");
         institutionRepository.delete(institution);

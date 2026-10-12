@@ -13,8 +13,10 @@ import com.eduverse.entity.UserStatus;
 import com.eduverse.exception.BadRequestException;
 import com.eduverse.exception.ResourceNotFoundException;
 import com.eduverse.repository.ClassSectionRepository;
+import com.eduverse.repository.FeePaymentRepository;
 import com.eduverse.repository.InstitutionRepository;
 import com.eduverse.repository.ParentProfileRepository;
+import com.eduverse.repository.StudentAttendanceRepository;
 import com.eduverse.repository.StudentProfileRepository;
 import com.eduverse.repository.UserRepository;
 import com.eduverse.service.PasswordGenerator;
@@ -36,6 +38,8 @@ public class StudentServiceImpl implements StudentService {
     private final InstitutionRepository institutionRepository;
     private final ClassSectionRepository classSectionRepository;
     private final ParentProfileRepository parentProfileRepository;
+    private final StudentAttendanceRepository studentAttendanceRepository;
+    private final FeePaymentRepository feePaymentRepository;
     private final PasswordEncoder passwordEncoder;
     private final PasswordGenerator passwordGenerator;
     private final com.eduverse.service.AuditLogService auditLogService;
@@ -278,8 +282,44 @@ public class StudentServiceImpl implements StudentService {
     @Transactional
     public void delete(Long institutionId, Long studentId) {
         StudentProfile student = studentProfileRepository.findByIdAndInstitutionId(studentId, institutionId)
-                .orElseThrow(() -> new ResourceNotFoundException("Student not found"));
-        userRepository.delete(student.getUser());
+                .orElse(null);
+        if (student == null) {
+            return;
+        }
+
+        User user = student.getUser();
+
+        try {
+            java.util.Optional<ParentProfile> parentOpt = parentProfileRepository.findByChildren_Id(studentId);
+            if (parentOpt.isPresent()) {
+                ParentProfile parent = parentOpt.get();
+                if (parent.getChildren() != null) {
+                    parent.getChildren().remove(student);
+                    parentProfileRepository.save(parent);
+                }
+            }
+        } catch (Exception ignored) {}
+
+        try {
+            studentAttendanceRepository.deleteByStudentId(studentId);
+        } catch (Exception ignored) {}
+
+        try {
+            feePaymentRepository.deleteByStudentId(studentId);
+        } catch (Exception ignored) {}
+
+        try {
+            auditLogService.log(institutionId, "DELETE_STUDENT", "STUDENT", studentId,
+                    "Removed student profile for '" + (user != null ? user.getFullName() : studentId) + "'");
+        } catch (Exception ignored) {}
+
         studentProfileRepository.delete(student);
+        studentProfileRepository.flush();
+
+        if (user != null) {
+            try {
+                userRepository.delete(user);
+            } catch (Exception ignored) {}
+        }
     }
 }

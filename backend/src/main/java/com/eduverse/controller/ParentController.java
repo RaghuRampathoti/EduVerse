@@ -21,9 +21,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+import org.springframework.transaction.annotation.Transactional;
+
 @RestController
 @RequestMapping("/api/parent")
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class ParentController {
 
     private final ParentProfileRepository parentProfileRepository;

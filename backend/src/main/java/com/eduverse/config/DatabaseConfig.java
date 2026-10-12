@@ -24,7 +24,7 @@ public class DatabaseConfig implements BeanPostProcessor {
             }
         }
         return bean;
-    }
+    }  
 
     private void normalizeDataSourceProperties(DataSourceProperties properties, String rawUrl) {
         String url = rawUrl.trim();

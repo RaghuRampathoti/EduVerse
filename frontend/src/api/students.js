@@ -6,6 +6,8 @@ export const studentApi = {
   create: (payload) => api.post("/admin/students", payload),
   update: (id, payload) => api.put(`/admin/students/${id}`, payload),
   delete: (id) => api.delete(`/admin/students/${id}`),
+  bulkUpload: (formData) => api.post("/admin/students/bulk-upload", formData, { headers: { "Content-Type": "multipart/form-data" } }),
+
 
   // Self-service
   me: () => api.get("/student/me"),

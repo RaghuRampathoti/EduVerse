@@ -19,9 +19,12 @@ import org.springframework.web.bind.annotation.RestController;
 
 import java.util.List;
 
+import org.springframework.transaction.annotation.Transactional;
+
 @RestController
 @RequestMapping("/api/student")
 @RequiredArgsConstructor
+@Transactional(readOnly = true)
 public class StudentController {
 
     private final StudentProfileRepository studentProfileRepository;
