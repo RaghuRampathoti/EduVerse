@@ -36,7 +36,8 @@ public class ClassSectionServiceImpl implements ClassSectionService {
     @Transactional
     public ClassSectionResponse create(Long institutionId, CreateClassSectionRequest request) {
         if (institutionId == null) {
-            throw new com.eduverse.exception.BadRequestException("Institution ID is required to create a Class/Section");
+            throw new com.eduverse.exception.BadRequestException(
+                    "Institution ID is required to create a Class/Section");
         }
         Institution institution = institutionRepository.findById(institutionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Institution not found"));
@@ -53,11 +54,15 @@ public class ClassSectionServiceImpl implements ClassSectionService {
                 .sectionName(request.sectionName())
                 .academicYear(request.academicYear())
                 .classTeacher(teacher)
-                .institutionType(request.institutionType() != null ? request.institutionType() : (institution.getType() != null ? institution.getType() : com.eduverse.entity.InstitutionType.COLLEGE))
+                .institutionType(request.institutionType() != null ? request.institutionType()
+                        : (institution.getType() != null ? institution.getType()
+                                : com.eduverse.entity.InstitutionType.COLLEGE))
+                .capacity(request.capacity() != null ? request.capacity() : 100)
                 .build();
         section = classSectionRepository.save(section);
         auditLogService.log(institutionId, "CREATE_CLASS_SECTION", "CLASS_SECTION", section.getId(),
-                "Created class '" + section.getClassName() + "-" + section.getSectionName() + "' for academic year " + section.getAcademicYear());
+                "Created class '" + section.getClassName() + "-" + section.getSectionName() + "' for academic year "
+                        + section.getAcademicYear());
         return toResponse(section);
     }
 
@@ -82,6 +87,9 @@ public class ClassSectionServiceImpl implements ClassSectionService {
         if (request.institutionType() != null) {
             section.setInstitutionType(request.institutionType());
         }
+        if (request.capacity() != null) {
+            section.setCapacity(request.capacity());
+        }
         if (request.classTeacherId() != null) {
             FacultyProfile teacher = facultyProfileRepository.findById(request.classTeacherId())
                     .orElse(null);
@@ -104,7 +112,6 @@ public class ClassSectionServiceImpl implements ClassSectionService {
             s.setClassSection(null);
             studentProfileRepository.save(s);
         }
-
         // Clean up timetable entries for this class section
         timetableRepository.deleteByClassSectionId(id);
 
@@ -128,7 +135,8 @@ public class ClassSectionServiceImpl implements ClassSectionService {
     private ClassSection findScoped(Long institutionId, Long id) {
         ClassSection section = classSectionRepository.findById(id)
                 .orElseThrow(() -> new ResourceNotFoundException("Class/Section not found"));
-        if (institutionId != null && section.getInstitution() != null && !section.getInstitution().getId().equals(institutionId)) {
+        if (institutionId != null && section.getInstitution() != null
+                && !section.getInstitution().getId().equals(institutionId)) {
             throw new ResourceNotFoundException("Class/Section not found in this institution");
         }
         return section;

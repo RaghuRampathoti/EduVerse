@@ -218,6 +218,8 @@ export default function SuperAdminInstitutionDetailsPage() {
                           <option value="SCHOOL">School</option>
                           <option value="COLLEGE">College</option>
                           <option value="UNIVERSITY">University</option>
+                          <option value="INSTITUTE">Institute</option>
+                          <option value="ACADEMY">Academy</option>
                         </Select>
                       </div>
                       {selectedInst.adminId && (

@@ -8,5 +8,6 @@ public record CreateClassSectionRequest(
         String sectionName,
         @NotBlank String academicYear,
         Long classTeacherId,
-        InstitutionType institutionType
+        InstitutionType institutionType,
+        Integer capacity
 ) {}

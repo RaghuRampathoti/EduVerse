@@ -7,6 +7,7 @@ import org.springframework.data.jpa.repository.Modifying;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface ParentProfileRepository extends JpaRepository<ParentProfile, Long> {
@@ -17,6 +18,8 @@ public interface ParentProfileRepository extends JpaRepository<ParentProfile, Lo
     Optional<ParentProfile> findByIdAndInstitutionId(@Param("id") Long id, @Param("institutionId") Long institutionId);
 
     Optional<ParentProfile> findByChildren_Id(Long studentId);
+
+    List<ParentProfile> findByChildren_IdIn(List<Long> studentIds);
 
     @Modifying
     @Query("DELETE FROM ParentProfile p WHERE p.institution.id = :institutionId")

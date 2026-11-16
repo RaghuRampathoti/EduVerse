@@ -41,6 +41,17 @@ public class AdminAttendanceController {
                 attendanceService.markFacultyAttendance(principal.getInstitutionId(), principal.getUserId(), request)));
     }
 
+    @PostMapping("/faculty/batch")
+    public ResponseEntity<ApiResponse<java.util.List<FacultyAttendanceResponse>>> markFacultyAttendanceBatch(
+            @AuthenticationPrincipal SecurityUser principal,
+            @Valid @RequestBody java.util.List<MarkFacultyAttendanceRequest> requests
+    ) {
+        var results = requests.stream()
+                .map(req -> attendanceService.markFacultyAttendance(principal.getInstitutionId(), principal.getUserId(), req))
+                .toList();
+        return ResponseEntity.ok(ApiResponse.ok("Faculty attendance saved", results));
+    }
+
     @GetMapping("/faculty")
     public ResponseEntity<ApiResponse<Page<FacultyAttendanceResponse>>> listFacultyAttendance(
             @AuthenticationPrincipal SecurityUser principal,
@@ -50,5 +61,28 @@ public class AdminAttendanceController {
         LocalDate targetDate = date != null ? LocalDate.parse(date) : LocalDate.now();
         return ResponseEntity.ok(ApiResponse.ok(
                 attendanceService.listInstitutionAttendance(principal.getInstitutionId(), targetDate, pageable)));
+    }
+
+    @PostMapping("/students")
+    public ResponseEntity<ApiResponse<java.util.List<com.eduverse.dto.response.StudentAttendanceResponse>>> markStudentAttendance(
+            @AuthenticationPrincipal SecurityUser principal,
+            @Valid @RequestBody com.eduverse.dto.request.MarkStudentAttendanceRequest request
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                "Student attendance saved",
+                attendanceService.markStudentAttendance(principal.getInstitutionId(), principal.getUserId(), request)));
+    }
+
+    @GetMapping("/students")
+    public ResponseEntity<ApiResponse<Page<com.eduverse.dto.response.StudentAttendanceResponse>>> listStudentAttendance(
+            @AuthenticationPrincipal SecurityUser principal,
+            @RequestParam Long classSectionId,
+            @RequestParam(required = false) String date,
+            Pageable pageable
+    ) {
+        LocalDate targetDate = date != null ? LocalDate.parse(date) : LocalDate.now();
+        return ResponseEntity.ok(ApiResponse.ok(
+                attendanceService.listStudentAttendanceByClass(
+                        principal.getInstitutionId(), classSectionId, targetDate, pageable)));
     }
 }

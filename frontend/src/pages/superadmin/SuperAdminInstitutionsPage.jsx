@@ -35,6 +35,7 @@ export default function SuperAdminInstitutionsPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
   const [createdCredentials, setCreatedCredentials] = useState(null);
   const [copied, setCopied] = useState(false);
 
@@ -109,6 +110,60 @@ export default function SuperAdminInstitutionsPage() {
     setForm((f) => ({ ...f, [key]: value }));
   }
 
+  function handlePhoneChange(e) {
+    const rawVal = e.target.value;
+
+    if (!rawVal) {
+      updateForm("phone", "");
+      setPhoneError("");
+      return;
+    }
+
+    if (rawVal.includes("+")) {
+      setPhoneError("Country code is not allowed. Please enter only a 10-digit number.");
+      return;
+    }
+
+    if (/[a-zA-Z]/.test(rawVal)) {
+      setPhoneError("Alphabets are not allowed. Please enter numbers only.");
+    } else {
+      setPhoneError("");
+    }
+
+    let digits = rawVal.replace(/\D/g, "");
+
+    if (digits.length > 0 && !/^[6-9]/.test(digits)) {
+      setPhoneError("Phone number must start with 6, 7, 8, or 9.");
+      digits = digits.replace(/^[^6-9]+/, "");
+    }
+
+    digits = digits.slice(0, 10);
+    updateForm("phone", digits);
+
+    if (digits.length === 10 && /^[6-9]\d{9}$/.test(digits)) {
+      setPhoneError("");
+    }
+  }
+
+  function handlePhoneBlur() {
+    if (!form.phone) {
+      setPhoneError("Phone number is required.");
+    } else if (form.phone.length !== 10) {
+      setPhoneError("Phone number must be exactly 10 digits.");
+
+    } else if (!/^[6-9]/.test(form.phone)) {
+      setPhoneError("Phone number must start with 6, 7, 8, or 9.");
+    } else {
+      setPhoneError("");
+    }
+  }
+
+  function handleCloseDialog() {
+    setDialogOpen(false);
+    setPhoneError("");
+    setError("");
+  }
+
   function handleToggleBranchStatus(id) {
     const updated = institutionsList.map((item) => {
       if (item.id === id) {
@@ -124,6 +179,26 @@ export default function SuperAdminInstitutionsPage() {
   async function handleCreate(e) {
     e.preventDefault();
     setError("");
+
+    // Validate 10-digit phone number starting with 6, 7, 8, or 9
+    const PHONE_REGEX = /^[6-9]\d{9}$/;
+    if (!form.phone || !PHONE_REGEX.test(form.phone)) {
+      if (!form.phone) {
+        setError("Phone number is required.");
+        setPhoneError("Phone number is required.");
+      } else if (form.phone.length !== 10) {
+        setError("Phone number must be exactly 10 digits.");
+        setPhoneError("Phone number must be exactly 10 digits.");
+      } else if (!/^[6-9]/.test(form.phone)) {
+        setError("Phone number must start with 6, 7, 8, or 9.");
+        setPhoneError("Phone number must start with 6, 7, 8, or 9.");
+      } else {
+        setError("Please enter a valid 10-digit phone number starting with 6, 7, 8, or 9.");
+        setPhoneError("Please enter a valid 10-digit phone number starting with 6, 7, 8, or 9.");
+      }
+      return;
+    }
+
     setSubmitting(true);
 
     try {
@@ -148,7 +223,7 @@ export default function SuperAdminInstitutionsPage() {
           localStorage.setItem(`eduverse_admin_assigned_type_${createdAdminAcc.id}`, form.type);
           localStorage.setItem(`eduverse_admin_assigned_name_${createdAdminAcc.id}`, form.name);
         }
-      } catch (e) {}
+      } catch (e) { }
 
       // 2. Create local Institution branch entry linked to this Admin
       const newInst = {
@@ -199,6 +274,7 @@ export default function SuperAdminInstitutionsPage() {
         adminPhone: "",
       });
 
+      setPhoneError("");
       setDialogOpen(false);
     } catch (err) {
       setError(extractErrorMessage(err));
@@ -229,7 +305,7 @@ export default function SuperAdminInstitutionsPage() {
     if (!window.confirm(`Delete institution "${name}" and unassign its Admin?`)) return;
     try {
       if (adminId) {
-        await institutionApi.deleteAdmin(adminId).catch(() => {});
+        await institutionApi.deleteAdmin(adminId).catch(() => { });
       }
       const updated = institutionsList.filter((item) => item.id !== id);
       saveInstitutions(updated);
@@ -394,8 +470,8 @@ export default function SuperAdminInstitutionsPage() {
       )}
 
       {/* Add Institution Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl" onClose={() => setDialogOpen(false)}>
+      <Dialog open={dialogOpen} onOpenChange={(open) => { if (!open) handleCloseDialog(); else setDialogOpen(true); }}>
+        <DialogContent className="max-w-2xl" onClose={handleCloseDialog}>
           <DialogHeader>
             <DialogTitle>Add New Institution & Assign Admin</DialogTitle>
             <DialogDescription>
@@ -441,18 +517,22 @@ export default function SuperAdminInstitutionsPage() {
                 <Input value={form.country} onChange={(e) => updateForm("country", e.target.value)} placeholder="e.g. USA" />
               </div>
               <div className="space-y-1.5">
-                <Label>Phone (10 Digits)</Label>
+                <Label>Phone (10 Digits) *</Label>
                 <Input
                   type="text"
                   inputMode="numeric"
                   value={form.phone}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, "").slice(0, 10);
-                    updateForm("phone", val);
-                  }}
+                  onChange={handlePhoneChange}
+                  onBlur={handlePhoneBlur}
                   placeholder="e.g. 9876543210"
                   maxLength={10}
+                  className={phoneError ? "border-destructive focus-visible:ring-destructive" : ""}
                 />
+                {phoneError ? (
+                  <p className="text-xs text-destructive">{phoneError}</p>
+                ) : (
+                  <p className="text-xs text-muted-foreground">10 digits starting with 6, 7, 8, or 9</p>
+                )}
               </div>
               <div className="space-y-1.5 col-span-2">
                 <Label>Full Address</Label>
@@ -502,7 +582,7 @@ export default function SuperAdminInstitutionsPage() {
             {error && <p className="text-sm text-destructive bg-destructive/10 rounded-md px-3 py-2">{error}</p>}
 
             <DialogFooter>
-              <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>Cancel</Button>
+              <Button type="button" variant="outline" onClick={handleCloseDialog}>Cancel</Button>
               <Button type="submit" disabled={submitting}>
                 {submitting ? "Creating..." : "Add Institution & Assign Admin"}
               </Button>

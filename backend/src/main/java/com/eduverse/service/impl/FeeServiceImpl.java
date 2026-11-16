@@ -119,7 +119,11 @@ public class FeeServiceImpl implements FeeService {
         if (!feeStructure.getInstitution().getId().equals(institutionId)) {
             throw new ResourceNotFoundException("Fee structure not found in this institution");
         }
+        feePaymentRepository.deleteByFeeStructureId(feeStructureId);
         feeStructureRepository.delete(feeStructure);
+
+        auditLogService.log(institutionId, "DELETE_FEE_STRUCTURE", "FEE_STRUCTURE", feeStructureId,
+                "Deleted fee structure '" + feeStructure.getTitle() + "' and its associated payment records");
     }
 
     @Override

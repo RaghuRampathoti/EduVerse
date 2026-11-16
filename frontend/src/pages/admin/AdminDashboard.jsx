@@ -8,6 +8,7 @@ import {
   AlertTriangle,
   GraduationCap,
   CalendarCheck,
+  Calendar,
   Award,
   Clock,
   Building2,
@@ -78,6 +79,7 @@ export default function AdminDashboard() {
   const operationsModules = [
     { label: "Students", to: "/admin/students", icon: Users, desc: "Admissions, Records & Class Enrolment", color: "from-blue-500/10 to-indigo-500/10 text-blue-600 dark:text-blue-400" },
     { label: "Attendance", to: "/admin/attendance", icon: CalendarCheck, desc: "Daily Student & Staff Attendance", color: "from-emerald-500/10 to-teal-500/10 text-emerald-600 dark:text-emerald-400" },
+    { label: "Timetable", to: "/admin/timetable", icon: Calendar, desc: "Class Schedules & Period Timetable Management", color: "from-teal-500/10 to-emerald-500/10 text-teal-600 dark:text-teal-400" },
     { label: "Fees", to: "/admin/fees", icon: Wallet, desc: "Structure, Invoices & Fee Collection", color: "from-violet-500/10 to-purple-500/10 text-violet-600 dark:text-violet-400" },
     { label: "Exams", to: "/admin/exams", icon: Award, desc: "Exams Schedule & Marks Entry", color: "from-rose-500/10 to-pink-500/10 text-rose-600 dark:text-rose-400" },
     { label: "Homework", to: "/admin/homework", icon: FileEdit, desc: "Homework Tracking & Submissions", color: "from-indigo-500/10 to-blue-500/10 text-indigo-600 dark:text-indigo-400" },
@@ -268,7 +270,7 @@ export default function AdminDashboard() {
                 </CardDescription>
               </div>
               <span className="text-xs font-bold px-2.5 py-1 rounded-full bg-emerald-500/10 text-emerald-600 border border-emerald-500/20">
-                7 Modules
+                8 Modules
               </span>
             </div>
           </CardHeader>

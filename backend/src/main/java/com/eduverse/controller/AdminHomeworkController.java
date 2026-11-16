@@ -1,6 +1,7 @@
 package com.eduverse.controller;
 
 import com.eduverse.dto.ApiResponse;
+import com.eduverse.dto.response.HomeworkResponse;
 import com.eduverse.entity.*;
 import com.eduverse.exception.ResourceNotFoundException;
 import com.eduverse.repository.HomeworkRepository;
@@ -13,6 +14,7 @@ import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
 
 import java.time.LocalDate;
+import java.time.format.DateTimeFormatter;
 import java.util.List;
 import java.util.Map;
 
@@ -26,16 +28,21 @@ public class AdminHomeworkController {
     private final AuditLogService auditLogService;
 
     @GetMapping
-    public ResponseEntity<ApiResponse<List<Homework>>> list(@AuthenticationPrincipal SecurityUser p) {
-        return ResponseEntity.ok(ApiResponse.ok(
-                homeworkRepository.findByInstitutionIdOrderByCreatedAtDesc(p.getInstitutionId())));
+    public ResponseEntity<ApiResponse<List<HomeworkResponse>>> list(@AuthenticationPrincipal SecurityUser p) {
+        List<HomeworkResponse> list = homeworkRepository.findByInstitutionIdOrderByCreatedAtDesc(p.getInstitutionId())
+                .stream()
+                .map(HomeworkResponse::from)
+                .toList();
+        return ResponseEntity.ok(ApiResponse.ok(list));
     }
 
     @PostMapping
-    public ResponseEntity<ApiResponse<Homework>> create(
+    public ResponseEntity<ApiResponse<HomeworkResponse>> create(
             @RequestBody Map<String, Object> body,
             @AuthenticationPrincipal SecurityUser p) {
-        Institution inst = institutionRepository.getReferenceById(p.getInstitutionId());
+        Institution inst = institutionRepository.findById(p.getInstitutionId())
+                .orElseThrow(() -> new ResourceNotFoundException("Institution not found"));
+
         Homework hw = Homework.builder()
                 .institution(inst)
                 .title(String.valueOf(body.getOrDefault("title", "Untitled")))
@@ -52,7 +59,7 @@ public class AdminHomeworkController {
         hw = homeworkRepository.save(hw);
         auditLogService.log(p.getInstitutionId(), "CREATE_HOMEWORK", "HOMEWORK", hw.getId(),
                 "Assigned homework '" + hw.getTitle() + "' for " + hw.getClassSection());
-        return ResponseEntity.ok(ApiResponse.ok("Homework assigned", hw));
+        return ResponseEntity.ok(ApiResponse.ok("Homework assigned", HomeworkResponse.from(hw)));
     }
 
     @DeleteMapping("/{id}")
@@ -67,6 +74,15 @@ public class AdminHomeworkController {
 
     private LocalDate parseDate(Object o) {
         if (o == null || String.valueOf(o).isBlank()) return null;
-        try { return LocalDate.parse(String.valueOf(o)); } catch (Exception e) { return null; }
+        String str = String.valueOf(o).trim();
+        try {
+            return LocalDate.parse(str);
+        } catch (Exception e) {
+            try {
+                return LocalDate.parse(str, DateTimeFormatter.ofPattern("dd-MM-yyyy"));
+            } catch (Exception ex) {
+                return null;
+            }
+        }
     }
 }

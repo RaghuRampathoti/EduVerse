@@ -15,12 +15,27 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 
+const QUALIFICATION_OPTIONS = [
+  "10th / SSC",
+  "Intermediate / 12th",
+  "Diploma",
+  "B.A., B.Sc., B.Com.",
+  "B.Tech / B.E.",
+  "B.Ed.",
+  "M.A., M.Sc., M.Com.",
+  "M.Tech / M.E.",
+  "M.Ed.",
+  "MBA, MCA",
+  "Ph.D.",
+  "Other",
+];
+
 const EMPTY_STAFF = {
   fullName: "",
   email: "",
   password: "",
   department: "Telugu",
-  qualification: "B.Ed / M.Sc",
+  qualification: "10th / SSC",
   phone: "",
   employeeId: "",
   institutionType: "SCHOOL",
@@ -42,6 +57,7 @@ export default function AdminStaffSetupPage() {
   const [submitting, setSubmitting] = useState(false);
   const [credentials, setCredentials] = useState(null);
   const [copied, setCopied] = useState(false);
+  const [phoneError, setPhoneError] = useState("");
 
   useEffect(() => {
     if (instType) {
@@ -76,26 +92,45 @@ export default function AdminStaffSetupPage() {
 
   function openAddModal(sector) {
     setEditingId(null);
+    setPhoneError("");
     const targetSector = instType || sector || activeTab || "SCHOOL";
     const defaultDept = targetSector === "SCHOOL" ? "Telugu" : "Science & Mathematics";
-    setForm({ ...EMPTY_STAFF, institutionType: targetSector, department: defaultDept });
+    setForm({ ...EMPTY_STAFF, institutionType: targetSector, department: defaultDept, qualification: "10th / SSC" });
     setDialogOpen(true);
   }
 
   function openEditModal(staff) {
     setEditingId(staff.id);
+    setPhoneError("");
     const targetSector = instType || staff.institutionType || "SCHOOL";
     setForm({
       fullName: staff.fullName || "",
       email: staff.email || "",
       password: "",
       department: staff.department || (targetSector === "SCHOOL" ? "Telugu" : "Science & Mathematics"),
-      qualification: staff.qualification || "",
+      qualification: staff.qualification || "10th / SSC",
       phone: staff.phone || "",
       employeeId: staff.employeeId || "",
       institutionType: targetSector,
     });
     setDialogOpen(true);
+  }
+
+  function handlePhoneChange(e) {
+    const rawVal = e.target.value;
+    // Strip non-digits and cap at 10 digits
+    const digitsOnly = rawVal.replace(/\D/g, "").slice(0, 10);
+    setForm((prev) => ({ ...prev, phone: digitsOnly }));
+
+    if (!digitsOnly) {
+      setPhoneError("Mobile number is required (cannot be empty)");
+    } else if (!['6', '7', '8', '9'].includes(digitsOnly[0])) {
+      setPhoneError("Mobile number must start with 6, 7, 8, or 9");
+    } else if (digitsOnly.length < 10) {
+      setPhoneError(`Mobile number must be exactly 10 digits (${digitsOnly.length}/10)`);
+    } else {
+      setPhoneError("");
+    }
   }
 
   function copyCredentials() {
@@ -107,8 +142,20 @@ export default function AdminStaffSetupPage() {
 
   async function handleSave(e) {
     e.preventDefault();
-    if (form.phone && form.phone.length !== 10) {
-      toast({ title: "Validation Error", description: "Mobile number must be exactly 10 digits", variant: "destructive" });
+    const phone = (form.phone || "").trim();
+    if (!phone) {
+      setPhoneError("Mobile number is required");
+      toast({ title: "Validation Error", description: "Mobile number is required (empty value not allowed)", variant: "destructive" });
+      return;
+    }
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      if (!['6', '7', '8', '9'].includes(phone[0])) {
+        setPhoneError("Mobile number must start with 6, 7, 8, or 9");
+        toast({ title: "Validation Error", description: "Mobile number must start with 6, 7, 8, or 9", variant: "destructive" });
+      } else {
+        setPhoneError("Mobile number must be exactly 10 digits");
+        toast({ title: "Validation Error", description: "Mobile number must be exactly 10 digits", variant: "destructive" });
+      }
       return;
     }
     setSubmitting(true);
@@ -116,10 +163,10 @@ export default function AdminStaffSetupPage() {
       const payload = {
         fullName: form.fullName?.trim(),
         email: form.email?.trim(),
-        phone: form.phone?.trim() || null,
+        phone: phone,
         employeeId: form.employeeId?.trim() || `FAC-${Date.now().toString().slice(-6)}`,
         department: form.department || ((instType || form.institutionType || "SCHOOL") === "SCHOOL" ? "Telugu" : "Science & Mathematics"),
-        qualification: form.qualification?.trim() || null,
+        qualification: form.qualification?.trim() || "10th / SSC",
         password: form.password?.trim() || null,
         institutionType: instType || form.institutionType || "SCHOOL",
       };
@@ -291,7 +338,7 @@ export default function AdminStaffSetupPage() {
                         {staff.department || "General"}
                       </span>
                     </TableCell>
-                    <TableCell className="text-xs text-muted-foreground">{staff.qualification || "B.Ed / M.Sc"}</TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{staff.qualification || "10th / SSC"}</TableCell>
                     <TableCell className="text-xs text-muted-foreground">{staff.email}</TableCell>
                     <TableCell>
                       <span className="inline-flex items-center text-xs font-semibold px-2 py-0.5 rounded bg-emerald-500/10 text-emerald-600">
@@ -412,26 +459,36 @@ export default function AdminStaffSetupPage() {
                 </div>
               )}
               <div className="space-y-1.5">
-                <Label>Qualification</Label>
-                <Input
-                  value={form.qualification}
+                <Label>Qualification *</Label>
+                <Select
+                  value={form.qualification || "10th / SSC"}
                   onChange={(e) => setForm({ ...form, qualification: e.target.value })}
-                  placeholder="e.g. Ph.D Mathematics"
-                />
+                >
+                  {QUALIFICATION_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
+                  ))}
+                  {!QUALIFICATION_OPTIONS.includes(form.qualification) && form.qualification && (
+                    <option value={form.qualification}>{form.qualification}</option>
+                  )}
+                </Select>
               </div>
               <div className="space-y-1.5">
-                <Label>Mobile Number (10 Digits)</Label>
+                <Label>Mobile Number (10 Digits) *</Label>
                 <Input
-                  type="text"
+                  type="tel"
                   inputMode="numeric"
                   value={form.phone}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, "").slice(0, 10);
-                    setForm({ ...form, phone: val });
-                  }}
+                  onChange={handlePhoneChange}
                   placeholder="e.g. 9876543210"
                   maxLength={10}
+                  required
+                  className={phoneError ? "border-destructive focus-visible:ring-destructive" : ""}
                 />
+                {phoneError && (
+                  <p className="text-xs text-destructive font-medium mt-1">{phoneError}</p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label>Employee Code</Label>

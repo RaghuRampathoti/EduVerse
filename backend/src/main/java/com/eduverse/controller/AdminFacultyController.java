@@ -58,7 +58,7 @@ public class AdminFacultyController {
     public ResponseEntity<ApiResponse<FacultyResponse>> update(
             @AuthenticationPrincipal SecurityUser principal,
             @PathVariable Long id,
-            @RequestBody UpdateFacultyRequest request
+            @Valid @RequestBody UpdateFacultyRequest request
     ) {
         return ResponseEntity.ok(ApiResponse.ok(facultyService.update(principal.getInstitutionId(), id, request)));
     }

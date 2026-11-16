@@ -22,6 +22,7 @@ import com.eduverse.repository.UserRepository;
 import com.eduverse.service.PasswordGenerator;
 import com.eduverse.service.StudentService;
 import lombok.RequiredArgsConstructor;
+import java.util.List;
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -110,7 +111,7 @@ public class StudentServiceImpl implements StudentService {
                 .guardianName(request.guardianName())
                 .guardianPhone(request.guardianPhone())
                 .address(request.address())
-                .bloodGroup(request.bloodGroup())
+                .bloodGroup(request.bloodGroup() != null && !request.bloodGroup().isBlank() ? request.bloodGroup().trim().toUpperCase() : null)
                 .build();
         student = studentProfileRepository.save(student);
 
@@ -118,26 +119,66 @@ public class StudentServiceImpl implements StudentService {
         String parentEmail = null;
         String parentUsername = null;
         String parentTempPassword = null;
+        String parentFullName = null;
+        String parentPhone = null;
 
-        if (request.parentFullName() != null && request.parentEmail() != null && !request.parentEmail().isBlank()) {
-            parentEmail = request.parentEmail();
-            parentUsername = request.parentUsername();
-            if (request.parentUsername() != null && !request.parentUsername().isBlank()
-                    && userRepository.existsByInstitutionIdAndUsername(institutionId, request.parentUsername())) {
-                throw new BadRequestException("Parent username already registered in this institution");
+        String pEmail = (request.parentEmail() != null && !request.parentEmail().isBlank()) ? request.parentEmail().trim() : null;
+        String pUsername = (request.parentUsername() != null && !request.parentUsername().isBlank()) ? request.parentUsername().trim() : null;
+        String pFullName = (request.parentFullName() != null && !request.parentFullName().isBlank())
+                ? request.parentFullName().trim()
+                : (request.guardianName() != null && !request.guardianName().isBlank() ? request.guardianName().trim() : null);
+        String pPhone = (request.parentPhone() != null && !request.parentPhone().isBlank())
+                ? request.parentPhone().trim()
+                : (request.guardianPhone() != null && !request.guardianPhone().isBlank() ? request.guardianPhone().trim() : null);
+
+        if (pEmail != null) {
+            parentEmail = pEmail;
+            parentUsername = pUsername;
+            parentFullName = pFullName != null ? pFullName : "Parent of " + studentUser.getFullName();
+            parentPhone = pPhone;
+
+            if (pUsername != null && userRepository.existsByInstitutionIdAndUsername(institutionId, pUsername)) {
+                throw new BadRequestException("Parent username '" + pUsername + "' already registered in this institution");
             }
 
-            if (!userRepository.existsByInstitutionIdAndEmail(institutionId, request.parentEmail())) {
+            var existingParentUserOpt = userRepository.findByInstitutionIdAndEmail(institutionId, pEmail);
+            if (existingParentUserOpt.isPresent()) {
+                User parentUser = existingParentUserOpt.get();
+                if (parentPhone != null && (parentUser.getPhone() == null || parentUser.getPhone().isBlank())) {
+                    parentUser.setPhone(parentPhone);
+                    userRepository.save(parentUser);
+                }
+                parentUsername = parentUser.getUsername();
+                parentFullName = parentUser.getFullName();
+                parentPhone = parentUser.getPhone();
+
+                var parentProfileOpt = parentProfileRepository.findByUserId(parentUser.getId());
+                if (parentProfileOpt.isPresent()) {
+                    ParentProfile parent = parentProfileOpt.get();
+                    if (parent.getChildren() == null) {
+                        parent.setChildren(new java.util.HashSet<>());
+                    }
+                    parent.getChildren().add(student);
+                    parentProfileRepository.save(parent);
+                } else {
+                    ParentProfile parent = ParentProfile.builder()
+                            .user(parentUser)
+                            .institution(institution)
+                            .children(new java.util.HashSet<>(java.util.Set.of(student)))
+                            .build();
+                    parentProfileRepository.save(parent);
+                }
+            } else {
                 parentTempPassword = (request.parentPassword() != null && !request.parentPassword().isBlank())
                         ? request.parentPassword()
                         : passwordGenerator.generate();
 
                 User parentUser = User.builder()
-                        .email(request.parentEmail())
-                        .username(request.parentUsername() != null && !request.parentUsername().isBlank() ? request.parentUsername() : null)
+                        .email(pEmail)
+                        .username(pUsername)
                         .password(passwordEncoder.encode(parentTempPassword))
-                        .fullName(request.parentFullName())
-                        .phone(request.parentPhone())
+                        .fullName(parentFullName)
+                        .phone(parentPhone)
                         .role(Role.PARENT)
                         .status(UserStatus.ACTIVE)
                         .institution(institution)
@@ -148,7 +189,7 @@ public class StudentServiceImpl implements StudentService {
                 ParentProfile parent = ParentProfile.builder()
                         .user(parentUser)
                         .institution(institution)
-                        .children(java.util.Set.of(student))
+                        .children(new java.util.HashSet<>(java.util.Set.of(student)))
                         .build();
                 parentProfileRepository.save(parent);
             }
@@ -157,7 +198,30 @@ public class StudentServiceImpl implements StudentService {
         auditLogService.log(institutionId, "CREATE_STUDENT", "STUDENT", student.getId(),
                 "Enrolled student '" + studentUser.getFullName() + "'" + (classSection != null ? " into " + classSection.getClassName() + "-" + classSection.getSectionName() : ""));
 
-        return StudentResponse.from(student, tempPassword, parentEmail, parentUsername, parentTempPassword);
+        return StudentResponse.from(student, tempPassword, parentEmail, parentUsername, parentTempPassword, parentFullName, parentPhone);
+    }
+
+    private Page<StudentResponse> mapToStudentResponsePage(Page<StudentProfile> studentsPage) {
+        List<Long> studentIds = studentsPage.getContent().stream().map(StudentProfile::getId).toList();
+        java.util.Map<Long, ParentProfile> parentMap = new java.util.HashMap<>();
+        if (!studentIds.isEmpty()) {
+            List<ParentProfile> parents = parentProfileRepository.findByChildren_IdIn(studentIds);
+            for (ParentProfile p : parents) {
+                if (p.getChildren() != null) {
+                    for (StudentProfile child : p.getChildren()) {
+                        parentMap.put(child.getId(), p);
+                    }
+                }
+            }
+        }
+        return studentsPage.map(s -> {
+            ParentProfile p = parentMap.get(s.getId());
+            String pEmail = (p != null && p.getUser() != null) ? p.getUser().getEmail() : null;
+            String pUsername = (p != null && p.getUser() != null) ? p.getUser().getUsername() : null;
+            String pFullName = (p != null && p.getUser() != null) ? p.getUser().getFullName() : null;
+            String pPhone = (p != null && p.getUser() != null) ? p.getUser().getPhone() : null;
+            return StudentResponse.from(s, null, pEmail, pUsername, null, pFullName, pPhone);
+        });
     }
 
     @Override
@@ -165,8 +229,8 @@ public class StudentServiceImpl implements StudentService {
         if (institutionId == null) {
             return org.springframework.data.domain.Page.empty(pageable);
         }
-        return studentProfileRepository.findByInstitutionId(institutionId, pageable)
-                .map(StudentResponse::from);
+        Page<StudentProfile> studentsPage = studentProfileRepository.findByInstitutionId(institutionId, pageable);
+        return mapToStudentResponsePage(studentsPage);
     }
 
     @Override
@@ -174,15 +238,25 @@ public class StudentServiceImpl implements StudentService {
         if (institutionId == null) {
             return org.springframework.data.domain.Page.empty(pageable);
         }
-        return studentProfileRepository.findByInstitutionIdAndClassSectionId(institutionId, classSectionId, pageable)
-                .map(StudentResponse::from);
+        Page<StudentProfile> studentsPage = studentProfileRepository.findByInstitutionIdAndClassSectionId(institutionId, classSectionId, pageable);
+        return mapToStudentResponsePage(studentsPage);
     }
 
     @Override
     public StudentResponse get(Long institutionId, Long studentId) {
         StudentProfile student = studentProfileRepository.findByIdAndInstitutionId(studentId, institutionId)
                 .orElseThrow(() -> new ResourceNotFoundException("Student not found"));
-        return StudentResponse.from(student);
+
+        String pEmail = null, pUsername = null, pFullName = null, pPhone = null;
+        var pOpt = parentProfileRepository.findByChildren_Id(studentId);
+        if (pOpt.isPresent()) {
+            User pu = pOpt.get().getUser();
+            pEmail = pu.getEmail();
+            pUsername = pu.getUsername();
+            pFullName = pu.getFullName();
+            pPhone = pu.getPhone();
+        }
+        return StudentResponse.from(student, null, pEmail, pUsername, null, pFullName, pPhone);
     }
 
     @Override
@@ -204,7 +278,7 @@ public class StudentServiceImpl implements StudentService {
         if (request.guardianName() != null) student.setGuardianName(request.guardianName());
         if (request.guardianPhone() != null) student.setGuardianPhone(request.guardianPhone());
         if (request.address() != null) student.setAddress(request.address());
-        if (request.bloodGroup() != null) student.setBloodGroup(request.bloodGroup());
+        if (request.bloodGroup() != null) student.setBloodGroup(request.bloodGroup().isBlank() ? null : request.bloodGroup().trim().toUpperCase());
 
         userRepository.save(student.getUser());
         student = studentProfileRepository.save(student);
@@ -221,16 +295,21 @@ public class StudentServiceImpl implements StudentService {
             User parentUser = parentProfile.getUser();
 
             if (request.parentFullName() != null && !request.parentFullName().isBlank()) {
-                parentUser.setFullName(request.parentFullName());
+                parentUser.setFullName(request.parentFullName().trim());
             }
             if (request.parentEmail() != null && !request.parentEmail().isBlank()) {
-                parentUser.setEmail(request.parentEmail());
+                parentUser.setEmail(request.parentEmail().trim());
             }
             if (request.parentUsername() != null && !request.parentUsername().isBlank()) {
-                parentUser.setUsername(request.parentUsername());
+                String cleanUsername = request.parentUsername().trim();
+                if (!cleanUsername.equalsIgnoreCase(parentUser.getUsername()) &&
+                    userRepository.existsByInstitutionIdAndUsername(institutionId, cleanUsername)) {
+                    throw new BadRequestException("Parent username '" + cleanUsername + "' already registered in this institution");
+                }
+                parentUser.setUsername(cleanUsername);
             }
             if (request.parentPhone() != null && !request.parentPhone().isBlank()) {
-                parentUser.setPhone(request.parentPhone());
+                parentUser.setPhone(request.parentPhone().trim());
             }
             if (request.parentPassword() != null && !request.parentPassword().isBlank()) {
                 parentUser.setPassword(passwordEncoder.encode(request.parentPassword()));
@@ -243,19 +322,54 @@ public class StudentServiceImpl implements StudentService {
             parentFullName = parentUser.getFullName();
             parentPhone = parentUser.getPhone();
         } else if (request.parentEmail() != null && !request.parentEmail().isBlank()) {
-            parentEmail = request.parentEmail();
-            parentUsername = request.parentUsername();
-            parentFullName = request.parentFullName() != null ? request.parentFullName() : request.guardianName();
-            parentPhone = request.parentPhone() != null ? request.parentPhone() : request.guardianPhone();
+            parentEmail = request.parentEmail().trim();
+            parentUsername = (request.parentUsername() != null && !request.parentUsername().isBlank()) ? request.parentUsername().trim() : null;
+            parentFullName = (request.parentFullName() != null && !request.parentFullName().isBlank())
+                    ? request.parentFullName().trim()
+                    : (request.guardianName() != null && !request.guardianName().isBlank() ? request.guardianName().trim() : "Parent of " + student.getUser().getFullName());
+            parentPhone = (request.parentPhone() != null && !request.parentPhone().isBlank())
+                    ? request.parentPhone().trim()
+                    : (request.guardianPhone() != null && !request.guardianPhone().isBlank() ? request.guardianPhone().trim() : null);
 
-            if (!userRepository.existsByEmail(request.parentEmail())) {
+            if (parentUsername != null && userRepository.existsByInstitutionIdAndUsername(institutionId, parentUsername)) {
+                throw new BadRequestException("Parent username '" + parentUsername + "' already registered in this institution");
+            }
+
+            var existingParentUserOpt = userRepository.findByInstitutionIdAndEmail(institutionId, parentEmail);
+            if (existingParentUserOpt.isPresent()) {
+                User parentUser = existingParentUserOpt.get();
+                if (parentPhone != null && (parentUser.getPhone() == null || parentUser.getPhone().isBlank())) {
+                    parentUser.setPhone(parentPhone);
+                    userRepository.save(parentUser);
+                }
+                parentUsername = parentUser.getUsername();
+                parentFullName = parentUser.getFullName();
+                parentPhone = parentUser.getPhone();
+
+                var parentProfileOpt = parentProfileRepository.findByUserId(parentUser.getId());
+                if (parentProfileOpt.isPresent()) {
+                    ParentProfile parent = parentProfileOpt.get();
+                    if (parent.getChildren() == null) {
+                        parent.setChildren(new java.util.HashSet<>());
+                    }
+                    parent.getChildren().add(student);
+                    parentProfileRepository.save(parent);
+                } else {
+                    ParentProfile parent = ParentProfile.builder()
+                            .user(parentUser)
+                            .institution(student.getInstitution())
+                            .children(new java.util.HashSet<>(java.util.Set.of(student)))
+                            .build();
+                    parentProfileRepository.save(parent);
+                }
+            } else {
                 parentTempPassword = (request.parentPassword() != null && !request.parentPassword().isBlank())
                         ? request.parentPassword()
                         : passwordGenerator.generate();
 
                 User parentUser = User.builder()
-                        .email(request.parentEmail())
-                        .username(request.parentUsername() != null && !request.parentUsername().isBlank() ? request.parentUsername() : null)
+                        .email(parentEmail)
+                        .username(parentUsername)
                         .password(passwordEncoder.encode(parentTempPassword))
                         .fullName(parentFullName)
                         .phone(parentPhone)
@@ -269,7 +383,7 @@ public class StudentServiceImpl implements StudentService {
                 ParentProfile parent = ParentProfile.builder()
                         .user(parentUser)
                         .institution(student.getInstitution())
-                        .children(java.util.Set.of(student))
+                        .children(new java.util.HashSet<>(java.util.Set.of(student)))
                         .build();
                 parentProfileRepository.save(parent);
             }

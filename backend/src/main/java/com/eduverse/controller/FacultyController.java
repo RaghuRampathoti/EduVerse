@@ -7,10 +7,12 @@ import com.eduverse.dto.response.FacultyAttendanceResponse;
 import com.eduverse.dto.response.FacultyResponse;
 import com.eduverse.dto.response.StudentAttendanceResponse;
 import com.eduverse.dto.response.StudentResponse;
+import com.eduverse.dto.response.TimetableEntryResponse;
 import com.eduverse.repository.FacultyProfileRepository;
 import com.eduverse.security.SecurityUser;
 import com.eduverse.service.AttendanceService;
 import com.eduverse.service.StudentService;
+import com.eduverse.service.TimetableService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import org.springframework.data.domain.Page;
@@ -18,6 +20,7 @@ import org.springframework.data.domain.Pageable;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -38,6 +41,7 @@ public class FacultyController {
     private final FacultyProfileRepository facultyProfileRepository;
     private final AttendanceService attendanceService;
     private final StudentService studentService;
+    private final TimetableService timetableService;
 
     @GetMapping("/me")
     public ResponseEntity<ApiResponse<FacultyResponse>> me(@AuthenticationPrincipal SecurityUser principal) {
@@ -106,5 +110,22 @@ public class FacultyController {
                 .orElseThrow(() -> new com.eduverse.exception.ResourceNotFoundException("Faculty profile not found"));
         return ResponseEntity.ok(ApiResponse.ok(
                 attendanceService.getFacultyAttendanceSummary(principal.getInstitutionId(), faculty.getId())));
+    }
+
+    @GetMapping("/timetable/me")
+    public ResponseEntity<ApiResponse<List<TimetableEntryResponse>>> myTimetable(
+            @AuthenticationPrincipal SecurityUser principal
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                timetableService.listByFacultyUser(principal.getInstitutionId(), principal.getUserId())));
+    }
+
+    @GetMapping("/timetable/class/{classSectionId}")
+    public ResponseEntity<ApiResponse<List<TimetableEntryResponse>>> classTimetable(
+            @AuthenticationPrincipal SecurityUser principal,
+            @PathVariable Long classSectionId
+    ) {
+        return ResponseEntity.ok(ApiResponse.ok(
+                timetableService.listByClassSection(principal.getInstitutionId(), classSectionId)));
     }
 }

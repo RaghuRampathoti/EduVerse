@@ -113,6 +113,7 @@ export const NAV_BY_ROLE = {
       items: [
         { label: "Students", to: "/admin/students", icon: Users },
         { label: "Attendance", to: "/admin/attendance", icon: CalendarCheck },
+        { label: "Timetable", to: "/admin/timetable", icon: Calendar },
         { label: "Fees", to: "/admin/fees", icon: Wallet },
         { label: "Exams", to: "/admin/exams", icon: Award },
         { label: "Homework", to: "/admin/homework", icon: FileEdit },

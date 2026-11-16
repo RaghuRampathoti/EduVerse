@@ -33,13 +33,15 @@ import { classSectionApi } from "@/api/classSections";
 import { studentApi } from "@/api/students";
 import { facultyApi } from "@/api/faculty";
 import { attendanceApi } from "@/api/attendance";
+import { leavesApi } from "@/api/leaves";
 import { extractErrorMessage } from "@/api/client";
 
 const ATTENDANCE_STATUSES = [
-  { value: "PRESENT", label: "Present", color: "bg-emerald-500/10 text-emerald-600 border-emerald-300" },
-  { value: "ABSENT", label: "Absent", color: "bg-rose-500/10 text-rose-600 border-rose-300" },
-  { value: "LATE", label: "Late", color: "bg-amber-500/10 text-amber-600 border-amber-300" },
-  { value: "ON_LEAVE", label: "On Leave", color: "bg-blue-500/10 text-blue-600 border-blue-300" },
+  { value: "PRESENT", label: "Present", color: "bg-emerald-500/10 text-emerald-600 border-emerald-300", weight: 1.0 },
+  { value: "ABSENT", label: "Absent", color: "bg-rose-500/10 text-rose-600 border-rose-300", weight: 0.0 },
+  { value: "LATE", label: "Late", color: "bg-amber-500/10 text-amber-600 border-amber-300", weight: 1.0 },
+  { value: "HALF_DAY", label: "Half-Day", color: "bg-purple-500/10 text-purple-600 border-purple-300", weight: 0.5 },
+  { value: "ON_LEAVE", label: "On Leave", color: "bg-blue-500/10 text-blue-600 border-blue-300", weight: 0.0 },
 ];
 
 export default function AdminAttendancePage() {
@@ -115,7 +117,6 @@ export default function AdminAttendancePage() {
           : (Array.isArray(facRes?.data?.data) ? facRes.data.data : []);
         setFacultyList(facs);
 
-        // Initialize faculty status map to PRESENT by default
         const initFacMap = {};
         facs.forEach((f) => { initFacMap[f.id] = "PRESENT"; });
         setFacultyStatusMap(initFacMap);
@@ -124,25 +125,124 @@ export default function AdminAttendancePage() {
       .finally(() => setLoading(false));
   }, [instType]);
 
-  // 2. Load Students when selectedClassId changes
+  // 2. Load Students & existing attendance when selectedClassId or date changes
   useEffect(() => {
-    if (!selectedClassId) return;
+    if (!selectedClassId) {
+      setStudents([]);
+      setStudentStatusMap({});
+      setStudentRemarksMap({});
+      return;
+    }
     setLoading(true);
-    studentApi.list({ page: 0, size: 200, classSectionId: selectedClassId })
-      .then((stRes) => {
+    Promise.all([
+      studentApi.list({ page: 0, size: 200, classSectionId: selectedClassId }),
+      attendanceApi.listStudentAttendance(selectedClassId, date).catch(() => ({ data: { data: [] } })),
+      leavesApi.list().catch(() => ({ data: { data: [] } })),
+    ])
+      .then(([stRes, attRes, leavesRes]) => {
         const stList = Array.isArray(stRes?.data?.data?.content)
           ? stRes.data.data.content
           : (Array.isArray(stRes?.data?.data) ? stRes.data.data : []);
         setStudents(stList);
 
-        // Initialize student status map to PRESENT by default
+        const savedRecords = Array.isArray(attRes?.data?.data?.content)
+          ? attRes.data.data.content
+          : (Array.isArray(attRes?.data?.data) ? attRes.data.data : []);
+
+        const leavesList = Array.isArray(leavesRes?.data?.data)
+          ? leavesRes.data.data
+          : (Array.isArray(leavesRes?.data?.data?.content) ? leavesRes.data.data.content : []);
+        const approvedLeaves = leavesList.filter(
+          (l) => l.status === "APPROVED" && l.fromDate <= date && date <= l.toDate
+        );
+
         const initStuMap = {};
-        stList.forEach((s) => { initStuMap[s.id] = "PRESENT"; });
+        const initRemarksMap = {};
+
+        // Default all to PRESENT
+        stList.forEach((s) => {
+          initStuMap[s.id] = "PRESENT";
+        });
+
+        // Check approved leaves (auto-apply ON_LEAVE)
+        stList.forEach((s) => {
+          const matchingLeave = approvedLeaves.find(
+            (l) => (l.applicantUserId && String(l.applicantUserId) === String(s.userId)) ||
+                   (l.applicantName && l.applicantName.toLowerCase() === s.fullName?.toLowerCase())
+          );
+          if (matchingLeave) {
+            initStuMap[s.id] = "ON_LEAVE";
+            initRemarksMap[s.id] = "Approved Leave (" + (matchingLeave.leaveType || "Leave") + ")";
+          }
+        });
+
+        // Overlay saved records if any exist for this date
+        savedRecords.forEach((rec) => {
+          if (rec.studentId) {
+            initStuMap[rec.studentId] = rec.status;
+            if (rec.remarks) {
+              initRemarksMap[rec.studentId] = rec.remarks;
+            }
+          }
+        });
+
         setStudentStatusMap(initStuMap);
+        setStudentRemarksMap(initRemarksMap);
       })
       .catch((err) => console.warn("Failed to load students for class:", err))
       .finally(() => setLoading(false));
-  }, [selectedClassId]);
+  }, [selectedClassId, date]);
+
+  // 3. Load Faculty attendance & approved leaves when date changes
+  useEffect(() => {
+    if (facultyList.length === 0) return;
+    Promise.all([
+      attendanceApi.listFacultyAttendance(date).catch(() => ({ data: { data: [] } })),
+      leavesApi.list().catch(() => ({ data: { data: [] } })),
+    ]).then(([attRes, leavesRes]) => {
+      const savedFacRecords = Array.isArray(attRes?.data?.data?.content)
+        ? attRes.data.data.content
+        : (Array.isArray(attRes?.data?.data) ? attRes.data.data : []);
+
+      const leavesList = Array.isArray(leavesRes?.data?.data)
+        ? leavesRes.data.data
+        : (Array.isArray(leavesRes?.data?.data?.content) ? leavesRes.data.data.content : []);
+      const approvedLeaves = leavesList.filter(
+        (l) => l.status === "APPROVED" && l.fromDate <= date && date <= l.toDate
+      );
+
+      const initFacMap = {};
+      const initRemarksMap = {};
+      facultyList.forEach((f) => {
+        initFacMap[f.id] = "PRESENT";
+      });
+
+      // Auto-apply approved leaves
+      facultyList.forEach((f) => {
+        const matchingLeave = approvedLeaves.find(
+          (l) => (l.applicantUserId && String(l.applicantUserId) === String(f.userId)) ||
+                 (l.applicantName && l.applicantName.toLowerCase() === f.fullName?.toLowerCase())
+        );
+        if (matchingLeave) {
+          initFacMap[f.id] = "ON_LEAVE";
+          initRemarksMap[f.id] = "Approved Leave (" + (matchingLeave.leaveType || "Leave") + ")";
+        }
+      });
+
+      // Overlay saved records
+      savedFacRecords.forEach((rec) => {
+        if (rec.facultyId) {
+          initFacMap[rec.facultyId] = rec.status;
+          if (rec.remarks) {
+            initRemarksMap[rec.facultyId] = rec.remarks;
+          }
+        }
+      });
+
+      setFacultyStatusMap(initFacMap);
+      setFacultyRemarksMap(initRemarksMap);
+    }).catch((err) => console.warn("Failed to load faculty attendance:", err));
+  }, [date, facultyList.length]);
 
   // Quick action: Mark all students
   function handleMarkAllStudents(status) {
@@ -162,8 +262,22 @@ export default function AdminAttendancePage() {
 
   // Save Student Attendance
   async function handleSaveStudentAttendance() {
+    if (!selectedClassId || students.length === 0) {
+      toast({ title: "Cannot Save", description: "No students in this class section to record attendance for.", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     try {
+      const entries = students.map((s) => ({
+        studentId: s.id,
+        status: studentStatusMap[s.id] || "PRESENT",
+        remarks: studentRemarksMap[s.id] || null,
+      }));
+      await attendanceApi.markStudent({
+        classSectionId: Number(selectedClassId),
+        date,
+        entries,
+      });
       toast({
         title: "Student Attendance Saved",
         description: `Successfully recorded daily attendance register for ${date}.`,
@@ -178,8 +292,19 @@ export default function AdminAttendancePage() {
 
   // Save Faculty Attendance
   async function handleSaveFacultyAttendance() {
+    if (facultyList.length === 0) {
+      toast({ title: "Cannot Save", description: "No faculty members found to record attendance for.", variant: "destructive" });
+      return;
+    }
     setSaving(true);
     try {
+      const requests = facultyList.map((f) => ({
+        facultyId: f.id,
+        date,
+        status: facultyStatusMap[f.id] || "PRESENT",
+        remarks: facultyRemarksMap[f.id] || null,
+      }));
+      await attendanceApi.markFacultyBatch(requests);
       toast({
         title: "Faculty Attendance Saved",
         description: `Faculty daily attendance register updated for ${date}.`,
@@ -208,6 +333,7 @@ export default function AdminAttendancePage() {
     const presentCount = filteredStudents.filter((s) => (studentStatusMap[s.id] || "PRESENT") === "PRESENT").length;
     const absentCount = filteredStudents.filter((s) => studentStatusMap[s.id] === "ABSENT").length;
     const lateCount = filteredStudents.filter((s) => studentStatusMap[s.id] === "LATE").length;
+    const halfDayCount = filteredStudents.filter((s) => studentStatusMap[s.id] === "HALF_DAY").length;
     const leaveCount = filteredStudents.filter((s) => studentStatusMap[s.id] === "ON_LEAVE").length;
 
     const htmlContent = `
@@ -227,6 +353,7 @@ export default function AdminAttendancePage() {
           .badge-present { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
           .badge-absent { background: #ffe4e6; color: #be123c; border: 1px solid #fecdd3; }
           .badge-late { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+          .badge-halfday { background: #f3e8ff; color: #7e22ce; border: 1px solid #e9d5ff; }
           .badge-leave { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
           table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; }
           th { background: #4f46e5; color: white; padding: 8px 10px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -257,6 +384,7 @@ export default function AdminAttendancePage() {
           <span class="badge badge-present">Present: ${presentCount}</span>
           <span class="badge badge-absent">Absent: ${absentCount}</span>
           <span class="badge badge-late">Late: ${lateCount}</span>
+          <span class="badge badge-halfday">Half-Day: ${halfDayCount}</span>
           <span class="badge badge-leave">On Leave: ${leaveCount}</span>
           <span style="margin-left: auto; font-weight: bold; align-self: center;">Total Students: ${filteredStudents.length}</span>
         </div>
@@ -280,6 +408,7 @@ export default function AdminAttendancePage() {
                 let badgeClass = "badge-present";
                 if (status === "ABSENT") badgeClass = "badge-absent";
                 if (status === "LATE") badgeClass = "badge-late";
+                if (status === "HALF_DAY") badgeClass = "badge-halfday";
                 if (status === "ON_LEAVE") badgeClass = "badge-leave";
                 return `
                 <tr>
@@ -326,6 +455,7 @@ export default function AdminAttendancePage() {
     const presentCount = filteredFaculty.filter((f) => (facultyStatusMap[f.id] || "PRESENT") === "PRESENT").length;
     const absentCount = filteredFaculty.filter((f) => facultyStatusMap[f.id] === "ABSENT").length;
     const lateCount = filteredFaculty.filter((f) => facultyStatusMap[f.id] === "LATE").length;
+    const halfDayCount = filteredFaculty.filter((f) => facultyStatusMap[f.id] === "HALF_DAY").length;
     const leaveCount = filteredFaculty.filter((f) => facultyStatusMap[f.id] === "ON_LEAVE").length;
 
     const htmlContent = `
@@ -345,6 +475,7 @@ export default function AdminAttendancePage() {
           .badge-present { background: #dcfce7; color: #15803d; border: 1px solid #bbf7d0; }
           .badge-absent { background: #ffe4e6; color: #be123c; border: 1px solid #fecdd3; }
           .badge-late { background: #fef3c7; color: #b45309; border: 1px solid #fde68a; }
+          .badge-halfday { background: #f3e8ff; color: #7e22ce; border: 1px solid #e9d5ff; }
           .badge-leave { background: #dbeafe; color: #1d4ed8; border: 1px solid #bfdbfe; }
           table { width: 100%; border-collapse: collapse; margin-top: 8px; font-size: 11px; }
           th { background: #059669; color: white; padding: 8px 10px; text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.5px; }
@@ -374,6 +505,7 @@ export default function AdminAttendancePage() {
           <span class="badge badge-present">Present: ${presentCount}</span>
           <span class="badge badge-absent">Absent: ${absentCount}</span>
           <span class="badge badge-late">Late: ${lateCount}</span>
+          <span class="badge badge-halfday">Half-Day: ${halfDayCount}</span>
           <span class="badge badge-leave">On Leave: ${leaveCount}</span>
           <span style="margin-left: auto; font-weight: bold; align-self: center;">Total Staff: ${filteredFaculty.length}</span>
         </div>
@@ -397,6 +529,7 @@ export default function AdminAttendancePage() {
                 let badgeClass = "badge-present";
                 if (status === "ABSENT") badgeClass = "badge-absent";
                 if (status === "LATE") badgeClass = "badge-late";
+                if (status === "HALF_DAY") badgeClass = "badge-halfday";
                 if (status === "ON_LEAVE") badgeClass = "badge-leave";
                 return `
                 <tr>
@@ -445,14 +578,23 @@ export default function AdminAttendancePage() {
     f.employeeId?.toLowerCase().includes(facultySearch.toLowerCase())
   );
 
-  // Statistics calculation
+  // Statistics calculation with weightage:
+  // Present: 1.0, Late: 1.0, Half-Day: 0.5, Absent: 0.0, On Leave: 0.0
   const totalStudents = students.length;
-  const presentStudents = students.filter((s) => (studentStatusMap[s.id] || "PRESENT") === "PRESENT").length;
-  const studentAttendanceRate = totalStudents > 0 ? ((presentStudents / totalStudents) * 100).toFixed(1) : "95.4";
+  const presentStudentCount = students.filter((s) => (studentStatusMap[s.id] || "PRESENT") === "PRESENT").length;
+  const lateStudentCount = students.filter((s) => studentStatusMap[s.id] === "LATE").length;
+  const halfDayStudentCount = students.filter((s) => studentStatusMap[s.id] === "HALF_DAY").length;
+  const studentPresentEquivalent = (presentStudentCount * 1.0) + (lateStudentCount * 1.0) + (halfDayStudentCount * 0.5);
+  // Never show hardcoded fallback 95.4%! If totalStudents === 0, show 0.0%
+  const studentAttendanceRate = totalStudents > 0 ? ((studentPresentEquivalent / totalStudents) * 100).toFixed(1) : "0.0";
 
   const totalFaculty = facultyList.length;
-  const presentFaculty = facultyList.filter((f) => (facultyStatusMap[f.id] || "PRESENT") === "PRESENT").length;
-  const facultyAttendanceRate = totalFaculty > 0 ? ((presentFaculty / totalFaculty) * 100).toFixed(1) : "98.2";
+  const presentFacultyCount = facultyList.filter((f) => (facultyStatusMap[f.id] || "PRESENT") === "PRESENT").length;
+  const lateFacultyCount = facultyList.filter((f) => facultyStatusMap[f.id] === "LATE").length;
+  const halfDayFacultyCount = facultyList.filter((f) => facultyStatusMap[f.id] === "HALF_DAY").length;
+  const facultyPresentEquivalent = (presentFacultyCount * 1.0) + (lateFacultyCount * 1.0) + (halfDayFacultyCount * 0.5);
+  // Never show hardcoded fallback 98.2%! If totalFaculty === 0, show 0.0%
+  const facultyAttendanceRate = totalFaculty > 0 ? ((facultyPresentEquivalent / totalFaculty) * 100).toFixed(1) : "0.0";
 
   return (
     <div className="space-y-6">
@@ -465,17 +607,17 @@ export default function AdminAttendancePage() {
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <StatCard
           label="Today's Student Attendance Rate"
-          value={`${studentAttendanceRate}%`}
+          value={totalStudents > 0 ? `${studentAttendanceRate}%` : "0.0%"}
           icon={CalendarCheck}
           accent="primary"
-          subtext={`${presentStudents}/${totalStudents || 0} Students Present`}
+          subtext={totalStudents > 0 ? `${studentPresentEquivalent}/${totalStudents} Students Present` : "0/0 Students (No students found)"}
         />
         <StatCard
           label="Faculty Attendance Rate"
-          value={`${facultyAttendanceRate}%`}
+          value={totalFaculty > 0 ? `${facultyAttendanceRate}%` : "0.0%"}
           icon={Users}
           accent="success"
-          subtext={`${presentFaculty}/${totalFaculty || 0} Staff Present`}
+          subtext={totalFaculty > 0 ? `${facultyPresentEquivalent}/${totalFaculty} Staff Present` : "0/0 Staff (No staff members)"}
         />
         <StatCard
           label="Configured Class Sections"

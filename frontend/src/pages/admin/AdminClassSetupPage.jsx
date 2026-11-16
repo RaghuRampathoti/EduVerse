@@ -38,7 +38,7 @@ export default function AdminClassSetupPage() {
   const [activeTab, setActiveTab] = useState(instType || "SCHOOL");
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
-  const [form, setForm] = useState({ name: "", track: "Secondary", capacity: "100", institutionType: instType || "SCHOOL", classTeacherId: "" });
+  const [form, setForm] = useState({ name: "", track: "Secondary", capacity: "60", institutionType: instType || "SCHOOL", classTeacherId: "" });
   const [submitting, setSubmitting] = useState(false);
 
   useEffect(() => {
@@ -66,18 +66,35 @@ export default function AdminClassSetupPage() {
     classSectionApi.list()
       .then((res) => {
         const secList = Array.isArray(res?.data?.data) ? res.data.data : (res?.data?.data?.content || []);
-        const apiClasses = secList.map((s) => ({
-          id: s.id,
-          name: s.className,
-          track: "General",
-          sectionsCount: s.studentCount || 1,
-          capacity: 100,
-          status: "ACTIVE",
-          institutionType: s.institutionType || instType || "SCHOOL",
-          classTeacherId: s.classTeacherId || null,
-          classTeacherName: s.classTeacherName || null,
-          isFromDb: true,
-        }));
+        const savedMap = {};
+        if (classStorageKey) {
+          try {
+            const saved = JSON.parse(localStorage.getItem(classStorageKey) || "[]");
+            saved.forEach((item) => {
+              if (item.id) savedMap[item.id] = item;
+            });
+          } catch (e) {}
+        }
+
+        const apiClasses = secList.map((s) => {
+          const localItem = savedMap[s.id];
+          const resolvedCapacity = (s.capacity !== undefined && s.capacity !== null)
+            ? Number(s.capacity)
+            : (localItem?.capacity !== undefined && localItem?.capacity !== null ? Number(localItem.capacity) : 60);
+
+          return {
+            id: s.id,
+            name: s.className,
+            track: localItem?.track || "General",
+            sectionsCount: s.studentCount || 1,
+            capacity: resolvedCapacity,
+            status: "ACTIVE",
+            institutionType: s.institutionType || instType || "SCHOOL",
+            classTeacherId: s.classTeacherId || null,
+            classTeacherName: s.classTeacherName || null,
+            isFromDb: true,
+          };
+        });
 
         setClasses(apiClasses);
         if (classStorageKey) {
@@ -98,7 +115,7 @@ export default function AdminClassSetupPage() {
   function openCreate(sector) {
     const targetSector = sector || instType || activeTab || "SCHOOL";
     setEditingItem(null);
-    setForm({ name: "", track: "Secondary", capacity: "100", institutionType: targetSector, classTeacherId: "" });
+    setForm({ name: "", track: "Secondary", capacity: "60", institutionType: targetSector, classTeacherId: "" });
     setDialogOpen(true);
   }
 
@@ -110,13 +127,14 @@ export default function AdminClassSetupPage() {
       const teacherIdNum = form.classTeacherId ? Number(form.classTeacherId) : null;
       const teacherObj = facultyList.find(f => f.id === teacherIdNum);
       const teacherName = teacherObj ? teacherObj.fullName : (form.classTeacherId ? "Assigned Teacher" : null);
+      const capNum = Math.max(1, Number(form.capacity) || 60);
 
       const newClassItem = {
         id: editingItem ? editingItem.id : Date.now(),
         name: form.name,
         track: form.track,
         sectionsCount: editingItem ? editingItem.sectionsCount : 0,
-        capacity: Number(form.capacity),
+        capacity: capNum,
         status: "ACTIVE",
         institutionType: targetSector,
         classTeacherId: teacherIdNum,
@@ -133,6 +151,7 @@ export default function AdminClassSetupPage() {
             academicYear: "2026-2027",
             institutionType: targetSector,
             classTeacherId: teacherIdNum,
+            capacity: capNum,
           });
         } else {
           await classSectionApi.create({
@@ -141,6 +160,7 @@ export default function AdminClassSetupPage() {
             academicYear: "2026-2027",
             institutionType: targetSector,
             classTeacherId: teacherIdNum,
+            capacity: capNum,
           });
         }
       } catch (backendErr) {
@@ -365,7 +385,7 @@ export default function AdminClassSetupPage() {
                           setForm({
                             name: cls.name,
                             track: cls.track || "Secondary",
-                            capacity: String(cls.capacity || 100),
+                            capacity: String(cls.capacity ?? 60),
                             institutionType: cls.institutionType || "SCHOOL",
                             classTeacherId: cls.classTeacherId ? String(cls.classTeacherId) : "",
                           });
@@ -441,9 +461,11 @@ export default function AdminClassSetupPage() {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label>Max Total Capacity (Students)</Label>
+              <Label>Max Total Capacity (Students) *</Label>
               <Input
                 type="number"
+                min="1"
+                placeholder="e.g. 60"
                 value={form.capacity}
                 onChange={(e) => setForm({ ...form, capacity: e.target.value })}
                 required

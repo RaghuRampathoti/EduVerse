@@ -9,6 +9,7 @@ import java.time.LocalDate;
 @Entity @Table(name = "exams")
 public class Exam extends BaseEntity {
 
+    @com.fasterxml.jackson.annotation.JsonIgnore
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "institution_id", nullable = false)
     private Institution institution;

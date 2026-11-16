@@ -32,6 +32,10 @@ public interface FeePaymentRepository extends JpaRepository<FeePayment, Long> {
     void deleteByStudentId(@Param("studentId") Long studentId);
 
     @Modifying
+    @org.springframework.data.jpa.repository.Query("DELETE FROM FeePayment f WHERE f.feeStructure.id = :feeStructureId")
+    void deleteByFeeStructureId(@Param("feeStructureId") Long feeStructureId);
+
+    @Modifying
     @org.springframework.data.jpa.repository.Query("DELETE FROM FeePayment f WHERE f.institution.id = :institutionId")
     void deleteByInstitutionId(@Param("institutionId") Long institutionId);
 }

@@ -158,6 +158,7 @@ export default function App() {
         {/* Operations */}
         <Route path="students" element={<StudentsPage />} />
         <Route path="attendance" element={<AdminAttendancePage />} />
+        <Route path="timetable" element={<TimetablePage />} />
         <Route path="fees" element={<FeesPage />} />
         <Route path="exams" element={<AdminExamsPage />} />
         <Route path="homework" element={<AdminHomeworkPage />} />
@@ -182,7 +183,7 @@ export default function App() {
         <Route path="profile" element={<FacultyProfilePage />} />
         <Route path="classes" element={<ClassesPage />} />
         <Route path="subjects" element={<FacultySubjectsPage />} />
-        <Route path="timetable" element={<TimetablePage />} />
+        <Route path="timetable" element={<FacultyTimetablePage />} />
         <Route path="attendance" element={<MarkAttendancePage />} />
         <Route path="students" element={<StudentsPage />} />
         <Route path="assignments" element={<FacultyAssignmentsPage />} />

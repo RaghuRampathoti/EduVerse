@@ -38,6 +38,18 @@ public class TimetableServiceImpl implements TimetableService {
     }
 
     @Override
+    public List<TimetableEntryResponse> listByFacultyUser(Long institutionId, Long userId) {
+        if (institutionId == null || userId == null) {
+            return List.of();
+        }
+        FacultyProfile faculty = facultyProfileRepository.findByUserId(userId)
+                .orElseThrow(() -> new ResourceNotFoundException("Faculty profile not found"));
+
+        List<Timetable> entries = timetableRepository.findByInstitutionIdAndFacultyId(institutionId, faculty.getId());
+        return entries.stream().map(TimetableEntryResponse::from).toList();
+    }
+
+    @Override
     @Transactional
     public TimetableEntryResponse saveEntry(Long institutionId, CreateTimetableEntryRequest request) {
         ClassSection classSection = classSectionRepository.findById(request.classSectionId())

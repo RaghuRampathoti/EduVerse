@@ -59,6 +59,8 @@ export default function AdminSubjectSetupPage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingItem, setEditingItem] = useState(null);
   const [selectedClassFilter, setSelectedClassFilter] = useState("ALL");
+  const [codeError, setCodeError] = useState("");
+  const [nameError, setNameError] = useState("");
 
   const [form, setForm] = useState({
     code: "",
@@ -139,8 +141,69 @@ export default function AdminSubjectSetupPage() {
     return subjects.filter(s => (s.allocatedClasses || "All Classes") === selectedClassFilter);
   }, [subjects, selectedClassFilter]);
 
+  function validateSubjectCode(code, currentId) {
+    const trimmed = (code || "").trim();
+    if (!trimmed) {
+      return "Subject Code cannot be empty.";
+    }
+    const approvedRegex = /^[A-Za-z0-9]+([-_][A-Za-z0-9]+)*$/;
+    if (!approvedRegex.test(trimmed)) {
+      return "Subject Code must follow an approved format (e.g. MATH-101, PHY-101).";
+    }
+    const isDuplicate = subjects.some(
+      (s) => s.id !== currentId && s.code?.trim().toUpperCase() === trimmed.toUpperCase()
+    );
+    if (isDuplicate) {
+      return `Subject Code '${trimmed.toUpperCase()}' already exists in this institution.`;
+    }
+    return "";
+  }
+
+  function validateSubjectName(name, currentId) {
+    const trimmed = (name || "").trim();
+    if (!trimmed) {
+      return "Subject Name cannot be empty.";
+    }
+    if (!/[a-zA-Z]/.test(trimmed)) {
+      return "Subject Name must contain letters and cannot consist solely of numbers or special characters.";
+    }
+    const isDuplicate = subjects.some(
+      (s) => s.id !== currentId && s.name?.trim().toLowerCase() === trimmed.toLowerCase()
+    );
+    if (isDuplicate) {
+      return `Subject Name '${trimmed}' already exists in this institution's catalogue.`;
+    }
+    return "";
+  }
+
+  function handleCodeChange(e) {
+    const raw = e.target.value.replace(/[^A-Za-z0-9-_]/g, "").toUpperCase();
+    setForm((f) => ({ ...f, code: raw }));
+    if (codeError) {
+      setCodeError(validateSubjectCode(raw, editingItem?.id));
+    }
+  }
+
+  function handleCodeBlur() {
+    setCodeError(validateSubjectCode(form.code, editingItem?.id));
+  }
+
+  function handleNameChange(e) {
+    const val = e.target.value;
+    setForm((f) => ({ ...f, name: val }));
+    if (nameError) {
+      setNameError(validateSubjectName(val, editingItem?.id));
+    }
+  }
+
+  function handleNameBlur() {
+    setNameError(validateSubjectName(form.name, editingItem?.id));
+  }
+
   function openCreate() {
     setEditingItem(null);
+    setCodeError("");
+    setNameError("");
     setForm({
       code: "",
       name: "",
@@ -155,6 +218,8 @@ export default function AdminSubjectSetupPage() {
 
   function openEdit(sub) {
     setEditingItem(sub);
+    setCodeError("");
+    setNameError("");
     const standardList = isCollege ? standardCollegeStreams : standardSchoolGrades;
     const knownClasses = [...standardList, ...configuredClasses, "All Classes", "All Grades"];
     const isCustom = sub.allocatedClasses && !knownClasses.includes(sub.allocatedClasses);
@@ -173,6 +238,23 @@ export default function AdminSubjectSetupPage() {
 
   function handleSave(e) {
     e.preventDefault();
+    const cleanCode = (form.code || "").trim().toUpperCase();
+    const cleanName = (form.name || "").trim();
+
+    const cErr = validateSubjectCode(cleanCode, editingItem?.id);
+    const nErr = validateSubjectName(cleanName, editingItem?.id);
+
+    if (cErr || nErr) {
+      setCodeError(cErr);
+      setNameError(nErr);
+      toast({
+        title: "Validation Error",
+        description: cErr || nErr,
+        variant: "destructive",
+      });
+      return;
+    }
+
     const finalClass = form.allocatedClasses === "CUSTOM"
       ? (form.customClass.trim() || (isCollege ? "MPC" : "All Classes"))
       : (form.allocatedClasses || (isCollege ? "MPC" : "All Classes"));
@@ -182,26 +264,26 @@ export default function AdminSubjectSetupPage() {
       if (editingItem) {
         updated = prev.map(s => s.id === editingItem.id ? {
           ...s,
-          code: form.code,
-          name: form.name,
+          code: cleanCode,
+          name: cleanName,
           type: form.type,
           credits: Number(form.credits),
           allocatedClasses: finalClass,
           faculty: form.faculty,
         } : s);
-        toast({ title: "Subject Updated", description: `${form.name} updated for ${finalClass}.`, variant: "success" });
+        toast({ title: "Subject Updated", description: `${cleanName} updated for ${finalClass}.`, variant: "success" });
       } else {
         const newSubject = {
           id: Date.now(),
-          code: form.code,
-          name: form.name,
+          code: cleanCode,
+          name: cleanName,
           type: form.type,
           credits: Number(form.credits),
           allocatedClasses: finalClass,
           faculty: form.faculty,
         };
         updated = [...prev, newSubject];
-        toast({ title: "Subject Created", description: `${form.name} assigned to ${finalClass}.`, variant: "success" });
+        toast({ title: "Subject Created", description: `${cleanName} assigned to ${finalClass}.`, variant: "success" });
       }
       if (storageKey) {
         try {
@@ -351,19 +433,29 @@ export default function AdminSubjectSetupPage() {
                 <Label>Subject Code *</Label>
                 <Input
                   value={form.code}
-                  onChange={(e) => setForm({ ...form, code: e.target.value })}
+                  onChange={handleCodeChange}
+                  onBlur={handleCodeBlur}
                   placeholder="e.g. MATH-101"
                   required
+                  className={codeError ? "border-destructive focus-visible:ring-destructive" : ""}
                 />
+                {codeError && (
+                  <p className="text-xs text-destructive font-medium mt-1">{codeError}</p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label>Subject Name *</Label>
                 <Input
                   value={form.name}
-                  onChange={(e) => setForm({ ...form, name: e.target.value })}
+                  onChange={handleNameChange}
+                  onBlur={handleNameBlur}
                   placeholder="e.g. Higher Mathematics"
                   required
+                  className={nameError ? "border-destructive focus-visible:ring-destructive" : ""}
                 />
+                {nameError && (
+                  <p className="text-xs text-destructive font-medium mt-1">{nameError}</p>
+                )}
               </div>
               <div className="space-y-1.5">
                 <Label>Subject Type</Label>

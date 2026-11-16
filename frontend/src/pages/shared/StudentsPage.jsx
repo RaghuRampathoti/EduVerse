@@ -39,6 +39,9 @@ export default function StudentsPage() {
   const [form, setForm] = useState(EMPTY);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [phoneError, setPhoneError] = useState("");
+  const [admissionError, setAdmissionError] = useState("");
+  const [parentPhoneError, setParentPhoneError] = useState("");
   const [credentials, setCredentials] = useState(null);
   const [copied, setCopied] = useState(false);
 
@@ -63,7 +66,7 @@ export default function StudentsPage() {
         if (classStorageKey) {
           try {
             localClasses = JSON.parse(localStorage.getItem(classStorageKey) || "[]");
-          } catch (e) {}
+          } catch (e) { }
         }
 
         const combined = [...rawList];
@@ -89,12 +92,20 @@ export default function StudentsPage() {
 
   function openCreate() {
     setEditingId(null);
+    setPhoneError("");
+    setAdmissionError("");
+    setParentPhoneError("");
+    setError("");
     setForm(EMPTY);
     setDialogOpen(true);
   }
 
   function openEdit(s) {
     setEditingId(s.id);
+    setPhoneError("");
+    setAdmissionError("");
+    setParentPhoneError("");
+    setError("");
     setForm({
       ...EMPTY,
       fullName: s.fullName, phone: s.phone || "", classSectionId: s.classSectionId || "",
@@ -110,46 +121,139 @@ export default function StudentsPage() {
     setDialogOpen(true);
   }
 
+  function handlePhoneChange(e) {
+    const rawVal = e.target.value;
+    const digitsOnly = rawVal.replace(/\D/g, "").slice(0, 10);
+    setForm((f) => ({ ...f, phone: digitsOnly }));
+
+    if (!digitsOnly) {
+      setPhoneError("Student mobile number is required (cannot be empty)");
+    } else if (!['6', '7', '8', '9'].includes(digitsOnly[0])) {
+      setPhoneError("Mobile number must start with 6, 7, 8, or 9");
+    } else if (digitsOnly.length < 10) {
+      setPhoneError(`Mobile number must be exactly 10 digits (${digitsOnly.length}/10)`);
+    } else {
+      setPhoneError("");
+    }
+  }
+
+  function handleParentPhoneChange(e) {
+    const rawVal = e.target.value;
+    const digitsOnly = rawVal.replace(/\D/g, "").slice(0, 10);
+    setForm((f) => ({ ...f, parentPhone: digitsOnly }));
+
+    if (!digitsOnly) {
+      setParentPhoneError("");
+    } else if (!['6', '7', '8', '9'].includes(digitsOnly[0])) {
+      setParentPhoneError("Parent mobile number must start with 6, 7, 8, or 9");
+    } else if (digitsOnly.length < 10) {
+      setParentPhoneError(`Parent mobile number must be exactly 10 digits (${digitsOnly.length}/10)`);
+    } else {
+      setParentPhoneError("");
+    }
+  }
+
+  function handleParentUsernameChange(e) {
+    const cleanVal = e.target.value.replace(/\s+/g, "").toLowerCase();
+    setForm((f) => ({ ...f, parentUsername: cleanVal }));
+  }
+
+  function handleAdmissionNumberChange(e) {
+    const rawVal = e.target.value;
+    if (rawVal.includes(".")) {
+      setAdmissionError("Admission number cannot contain decimal values. Enter whole numbers only.");
+    } else {
+      setAdmissionError("");
+    }
+    const cleanVal = rawVal.replace(/[^0-9]/g, "");
+    setForm((f) => ({ ...f, admissionNumber: cleanVal }));
+
+    if (!cleanVal) {
+      setAdmissionError("Admission number is required (cannot be empty)");
+    }
+  }
+
   async function handleSubmit(e) {
     e.preventDefault();
     setError("");
-    if (form.phone && form.phone.length !== 10) {
-      setError("Student mobile number must be exactly 10 digits");
+    const phone = (form.phone || "").trim();
+    if (!phone) {
+      setPhoneError("Student mobile number is required (cannot be empty)");
+      setError("Student mobile number is required (empty value not allowed)");
       return;
     }
+    if (!/^[6-9]\d{9}$/.test(phone)) {
+      if (!['6', '7', '8', '9'].includes(phone[0])) {
+        setPhoneError("Mobile number must start with 6, 7, 8, or 9");
+        setError("Mobile number must start with 6, 7, 8, or 9");
+      } else {
+        setPhoneError("Mobile number must be exactly 10 digits");
+        setError("Student mobile number must be exactly 10 digits");
+      }
+      return;
+    }
+
+    if (!editingId) {
+      const admissionNum = (form.admissionNumber || "").trim();
+      if (!admissionNum) {
+        setAdmissionError("Admission number is required (cannot be empty)");
+        setError("Admission number is required");
+        return;
+      }
+      if (admissionNum.includes(".") || !/^\d+$/.test(admissionNum)) {
+        setAdmissionError("Admission number must be a whole number without decimals");
+        setError("Admission number must be a whole number without decimals");
+        return;
+      }
+    }
+
     if (form.guardianPhone && form.guardianPhone.length !== 10) {
       setError("Parent/Guardian mobile number must be exactly 10 digits");
       return;
     }
-    if (form.parentPhone && form.parentPhone.length !== 10) {
-      setError("Parent Phone number must be exactly 10 digits");
+
+    if (form.parentPhone) {
+      if (!['6', '7', '8', '9'].includes(form.parentPhone[0])) {
+        setParentPhoneError("Parent mobile number must start with 6, 7, 8, or 9");
+        setError("Parent mobile number must start with 6, 7, 8, or 9");
+        return;
+      }
+      if (form.parentPhone.length !== 10) {
+        setParentPhoneError("Parent mobile number must be exactly 10 digits");
+        setError("Parent mobile number must be exactly 10 digits");
+        return;
+      }
+    }
+
+    if ((form.parentUsername || form.parentPhone || form.parentFullName) && !form.parentEmail?.trim()) {
+      setError("Parent Email (login) is required to create or link the parent account");
       return;
     }
     setSubmitting(true);
     try {
-        const parseSectionId = (val) => {
-          if (!val) return null;
-          const num = Number(val);
-          return isNaN(num) ? null : num;
-        };
+      const parseSectionId = (val) => {
+        if (!val) return null;
+        const num = Number(val);
+        return isNaN(num) ? null : num;
+      };
 
-        if (editingId) {
-          const { fullName, phone, classSectionId, rollNumber, gender, dateOfBirth, guardianName, guardianPhone, address, bloodGroup, parentFullName, parentEmail, parentUsername, parentPhone, parentPassword } = form;
-          await studentApi.update(editingId, {
-            fullName, phone, classSectionId: parseSectionId(classSectionId),
-            rollNumber, gender: gender || null, dateOfBirth: dateOfBirth || null,
-            guardianName, guardianPhone, address, bloodGroup,
-            parentFullName, parentEmail, parentUsername, parentPhone, parentPassword,
-          });
-          toast({ title: "Student updated", variant: "success" });
-          setDialogOpen(false);
-        } else {
-          const payload = { ...form, classSectionId: parseSectionId(form.classSectionId) };
-          const { data } = await studentApi.create(payload);
-          toast({ title: "Student enrolled successfully", variant: "success" });
-          setCredentials(data.data);
-          setDialogOpen(false);
-        }
+      if (editingId) {
+        const { fullName, phone, classSectionId, rollNumber, gender, dateOfBirth, guardianName, guardianPhone, address, bloodGroup, parentFullName, parentEmail, parentUsername, parentPhone, parentPassword } = form;
+        await studentApi.update(editingId, {
+          fullName, phone, classSectionId: parseSectionId(classSectionId),
+          rollNumber, gender: gender || null, dateOfBirth: dateOfBirth || null,
+          guardianName, guardianPhone, address, bloodGroup,
+          parentFullName, parentEmail, parentUsername, parentPhone, parentPassword,
+        });
+        toast({ title: "Student updated", variant: "success" });
+        setDialogOpen(false);
+      } else {
+        const payload = { ...form, classSectionId: parseSectionId(form.classSectionId) };
+        const { data } = await studentApi.create(payload);
+        toast({ title: "Student enrolled successfully", variant: "success" });
+        setCredentials(data.data);
+        setDialogOpen(false);
+      }
       load();
     } catch (err) {
       setError(extractErrorMessage(err));
@@ -222,7 +326,7 @@ export default function StudentsPage() {
         ParentPhone: "9876543211"
       }
     ];
-    
+
     const worksheet = XLSX.utils.json_to_sheet(columns);
     const workbook = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(workbook, worksheet, "Student Template");
@@ -325,23 +429,36 @@ export default function StudentsPage() {
                 </>
               )}
               <div className="space-y-1.5">
-                <Label>Student Mobile Number (10 Digits)</Label>
+                <Label>Student Mobile Number (10 Digits) *</Label>
                 <Input
-                  type="text"
+                  type="tel"
                   inputMode="numeric"
                   value={form.phone}
-                  onChange={(e) => {
-                    const val = e.target.value.replace(/\D/g, "").slice(0, 10);
-                    setForm((f) => ({ ...f, phone: val }));
-                  }}
+                  onChange={handlePhoneChange}
                   placeholder="e.g. 9876543210"
                   maxLength={10}
+                  required
+                  className={phoneError ? "border-destructive focus-visible:ring-destructive" : ""}
                 />
+                {phoneError && (
+                  <p className="text-xs text-destructive font-medium mt-1">{phoneError}</p>
+                )}
               </div>
               {!editingId && (
                 <div className="space-y-1.5">
                   <Label>Admission Number *</Label>
-                  <Input value={form.admissionNumber} onChange={(e) => setForm((f) => ({ ...f, admissionNumber: e.target.value }))} required />
+                  <Input
+                    type="text"
+                    inputMode="numeric"
+                    value={form.admissionNumber}
+                    onChange={handleAdmissionNumberChange}
+                    placeholder="e.g. 1001"
+                    required
+                    className={admissionError ? "border-destructive focus-visible:ring-destructive" : ""}
+                  />
+                  {admissionError && (
+                    <p className="text-xs text-destructive font-medium mt-1">{admissionError}</p>
+                  )}
                 </div>
               )}
               <div className="space-y-1.5">
@@ -380,7 +497,17 @@ export default function StudentsPage() {
               )}
               <div className="space-y-1.5">
                 <Label>Blood Group</Label>
-                <Input value={form.bloodGroup} onChange={(e) => setForm((f) => ({ ...f, bloodGroup: e.target.value }))} placeholder="e.g. O+" />
+                <Select value={form.bloodGroup} onChange={(e) => setForm((f) => ({ ...f, bloodGroup: e.target.value }))}>
+                  <option value="">Select Blood Group</option>
+                  <option value="A+">A+</option>
+                  <option value="A-">A-</option>
+                  <option value="B+">B+</option>
+                  <option value="B-">B-</option>
+                  <option value="O+">O+</option>
+                  <option value="O-">O-</option>
+                  <option value="AB+">AB+</option>
+                  <option value="AB-">AB-</option>
+                </Select>
               </div>
               <div className="space-y-1.5 col-span-2">
                 <Label>Address</Label>
@@ -416,7 +543,12 @@ export default function StudentsPage() {
                 </div>
                 <div className="space-y-1.5">
                   <Label>Parent Username</Label>
-                  <Input value={form.parentUsername} onChange={(e) => setForm((f) => ({ ...f, parentUsername: e.target.value }))} placeholder="e.g. parent1" />
+                  <Input
+                    value={form.parentUsername}
+                    onChange={handleParentUsernameChange}
+                    placeholder="e.g. parent1"
+                    autoCapitalize="none"
+                  />
                 </div>
                 <div className="space-y-1.5">
                   <Label>Parent Email (login)</Label>
@@ -425,16 +557,17 @@ export default function StudentsPage() {
                 <div className="space-y-1.5">
                   <Label>Parent Phone (10 Digits)</Label>
                   <Input
-                    type="text"
+                    type="tel"
                     inputMode="numeric"
                     value={form.parentPhone}
-                    onChange={(e) => {
-                      const val = e.target.value.replace(/\D/g, "").slice(0, 10);
-                      setForm((f) => ({ ...f, parentPhone: val }));
-                    }}
+                    onChange={handleParentPhoneChange}
                     placeholder="e.g. 9876543210"
                     maxLength={10}
+                    className={parentPhoneError ? "border-destructive focus-visible:ring-destructive" : ""}
                   />
+                  {parentPhoneError && (
+                    <p className="text-xs text-destructive font-medium mt-1">{parentPhoneError}</p>
+                  )}
                 </div>
                 <div className="space-y-1.5">
                   <Label>Parent Password</Label>
@@ -570,12 +703,20 @@ export default function StudentsPage() {
                     <p className="font-bold text-foreground text-sm">{viewStudent.guardianPhone || "N/A"}</p>
                   </div>
                   <div className="p-3 rounded-lg border bg-indigo-500/5 border-indigo-200 space-y-1">
-                    <p className="text-muted-foreground font-medium">Parent Email (Portal Login)</p>
-                    <p className="font-bold text-foreground text-sm">{viewStudent.parentEmail || "N/A"}</p>
+                    <p className="text-muted-foreground font-medium">Parent Full Name</p>
+                    <p className="font-bold text-foreground text-sm">{viewStudent.parentFullName || viewStudent.guardianName || "N/A"}</p>
                   </div>
                   <div className="p-3 rounded-lg border bg-indigo-500/5 border-indigo-200 space-y-1">
                     <p className="text-muted-foreground font-medium">Parent Username</p>
                     <p className="font-bold text-foreground text-sm">{viewStudent.parentUsername || "N/A"}</p>
+                  </div>
+                  <div className="p-3 rounded-lg border bg-indigo-500/5 border-indigo-200 space-y-1">
+                    <p className="text-muted-foreground font-medium">Parent Email (Portal Login)</p>
+                    <p className="font-bold text-foreground text-sm">{viewStudent.parentEmail || "N/A"}</p>
+                  </div>
+                  <div className="p-3 rounded-lg border bg-indigo-500/5 border-indigo-200 space-y-1">
+                    <p className="text-muted-foreground font-medium">Parent Phone</p>
+                    <p className="font-bold text-foreground text-sm">{viewStudent.parentPhone || viewStudent.guardianPhone || "N/A"}</p>
                   </div>
                 </div>
               </div>
@@ -600,7 +741,7 @@ export default function StudentsPage() {
             <DialogTitle>Bulk Import Students</DialogTitle>
             <DialogDescription>Upload a CSV or Excel file to enroll multiple students at once.</DialogDescription>
           </DialogHeader>
-          
+
           {bulkResult ? (
             <div className="space-y-4">
               <div className="p-4 bg-muted rounded-md space-y-2">
@@ -623,7 +764,7 @@ export default function StudentsPage() {
                 <Label>Select File (.csv, .xlsx)</Label>
                 <Input type="file" accept=".csv,.xlsx,.xls" onChange={(e) => setBulkFile(e.target.files[0])} required />
               </div>
-              
+
               <div className="text-sm text-muted-foreground flex items-center justify-between">
                 <span>Need a template?</span>
                 <Button type="button" variant="link" className="p-0 h-auto" onClick={downloadTemplate}>Download Excel Template</Button>

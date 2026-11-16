@@ -29,7 +29,8 @@ public class StudentBulkImportService {
 
     public BulkImportResponse bulkImport(Long institutionId, MultipartFile file) {
         String filename = file.getOriginalFilename();
-        if (filename == null || (!filename.endsWith(".csv") && !filename.endsWith(".xlsx") && !filename.endsWith(".xls"))) {
+        if (filename == null
+                || (!filename.endsWith(".csv") && !filename.endsWith(".xlsx") && !filename.endsWith(".xls"))) {
             throw new BadRequestException("Only CSV and Excel files are supported");
         }
 
@@ -40,7 +41,8 @@ public class StudentBulkImportService {
         try {
             if (filename.endsWith(".csv")) {
                 try (Reader reader = new InputStreamReader(file.getInputStream());
-                     CSVParser csvParser = new CSVParser(reader, CSVFormat.DEFAULT.withFirstRecordAsHeader().withIgnoreHeaderCase().withTrim())) {
+                        CSVParser csvParser = new CSVParser(reader,
+                                CSVFormat.DEFAULT.withFirstRecordAsHeader().withIgnoreHeaderCase().withTrim())) {
                     for (CSVRecord record : csvParser) {
                         totalRecords++;
                         try {
@@ -113,8 +115,7 @@ public class StudentBulkImportService {
                 null,
                 null,
                 null,
-                null
-        );
+                null);
     }
 
     private CreateStudentRequest parseExcelRow(Row row) {
@@ -130,9 +131,12 @@ public class StudentBulkImportService {
         String address = getCellValue(row, 9);
         String bloodGroup = getCellValue(row, 10);
 
-        if (fullName == null || fullName.isBlank()) throw new RuntimeException("FullName is required");
-        if (email == null || email.isBlank()) throw new RuntimeException("Email is required");
-        if (admissionNumber == null || admissionNumber.isBlank()) throw new RuntimeException("AdmissionNumber is required");
+        if (fullName == null || fullName.isBlank())
+            throw new RuntimeException("FullName is required");
+        if (email == null || email.isBlank())
+            throw new RuntimeException("Email is required");
+        if (admissionNumber == null || admissionNumber.isBlank())
+            throw new RuntimeException("AdmissionNumber is required");
 
         Gender gender = null;
         if (genderStr != null && !genderStr.isBlank()) {
@@ -164,13 +168,13 @@ public class StudentBulkImportService {
                 null,
                 null,
                 null,
-                null
-        );
+                null);
     }
 
     private String getCellValue(Row row, int cellIndex) {
         org.apache.poi.ss.usermodel.Cell cell = row.getCell(cellIndex);
-        if (cell == null) return null;
+        if (cell == null)
+            return null;
         return cell.toString().trim();
     }
 }

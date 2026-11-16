@@ -49,4 +49,7 @@ public class ClassSection extends BaseEntity {
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "class_teacher_id")
     private FacultyProfile classTeacher;
+
+    @Column(name = "capacity")
+    private Integer capacity;
 }

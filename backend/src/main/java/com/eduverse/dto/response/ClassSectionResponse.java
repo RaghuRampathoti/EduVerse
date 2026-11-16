@@ -11,7 +11,8 @@ public record ClassSectionResponse(
         String classTeacherName,
         long studentCount,
         String institutionType,
-        String institutionName
+        String institutionName,
+        Integer capacity
 ) {
     public static ClassSectionResponse from(ClassSection c, long studentCount) {
         String type = c.getInstitutionType() != null
@@ -29,7 +30,8 @@ public record ClassSectionResponse(
                 c.getClassTeacher() != null ? c.getClassTeacher().getUser().getFullName() : null,
                 studentCount,
                 type,
-                name
+                name,
+                c.getCapacity() != null ? c.getCapacity() : 100
         );
     }
 }

@@ -8,7 +8,6 @@ import com.eduverse.repository.InstitutionRepository;
 import com.eduverse.repository.LeaveApplicationRepository;
 import com.eduverse.security.SecurityUser;
 import com.eduverse.service.AuditLogService;
-import lombok.RequiredArgsConstructor;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.annotation.AuthenticationPrincipal;
 import org.springframework.web.bind.annotation.*;
@@ -20,12 +19,20 @@ import java.util.Map;
 
 @RestController
 @RequestMapping("/api/admin/leaves")
-@RequiredArgsConstructor
 public class AdminLeaveController {
 
     private final LeaveApplicationRepository leaveRepo;
     private final InstitutionRepository institutionRepository;
     private final AuditLogService auditLogService;
+
+    public AdminLeaveController(
+            LeaveApplicationRepository leaveRepo,
+            InstitutionRepository institutionRepository,
+            AuditLogService auditLogService) {
+        this.leaveRepo = leaveRepo;
+        this.institutionRepository = institutionRepository;
+        this.auditLogService = auditLogService;
+    }
 
     @GetMapping
     public ResponseEntity<ApiResponse<List<LeaveApplication>>> list(@AuthenticationPrincipal SecurityUser p) {
@@ -43,7 +50,8 @@ public class AdminLeaveController {
     public ResponseEntity<ApiResponse<LeaveApplication>> apply(
             @RequestBody Map<String, Object> body,
             @AuthenticationPrincipal SecurityUser p) {
-        Institution inst = institutionRepository.getReferenceById(p.getInstitutionId());
+        Institution inst = institutionRepository.findById(p.getInstitutionId())
+                .orElseThrow(() -> new ResourceNotFoundException("Institution not found"));
         LocalDate from = parseDate(body.get("fromDate"));
         LocalDate to = parseDate(body.get("toDate"));
         int days = (from != null && to != null) ? (int) ChronoUnit.DAYS.between(from, to) + 1 : 1;
@@ -87,6 +95,15 @@ public class AdminLeaveController {
 
     private LocalDate parseDate(Object o) {
         if (o == null || String.valueOf(o).isBlank()) return null;
-        try { return LocalDate.parse(String.valueOf(o)); } catch (Exception e) { return null; }
+        String str = String.valueOf(o).trim();
+        try {
+            return LocalDate.parse(str);
+        } catch (Exception e) {
+            try {
+                return LocalDate.parse(str, java.time.format.DateTimeFormatter.ofPattern("dd-MM-yyyy"));
+            } catch (Exception ex) {
+                return null;
+            }
+        }
     }
 }
